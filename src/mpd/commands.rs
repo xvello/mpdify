@@ -1,6 +1,7 @@
-use crate::mpd::types::{Time, MpdError};
 use std::str::FromStr;
-use crate::mpd::types::MpdError::{UnknownCommand, MissingArgument, InvalidArgument, MissingCommand};
+
+use crate::mpd::inputtypes::{Time, InputError};
+use crate::mpd::inputtypes::InputError::{UnknownCommand, MissingArgument, InvalidArgument, MissingCommand};
 use crate::mpd::commands::Command::{Pause, SeekCur};
 
 // From https://www.musicpd.org/doc/html/protcurrentsongocol.html
@@ -27,10 +28,11 @@ pub enum Command {
 
     // Connection settings
     Ping,
+    Close,
 }
 
 impl FromStr for Command {
-    type Err = MpdError;
+    type Err = InputError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         // TODO: need to support quoting arguments (custom iterator)
@@ -62,6 +64,7 @@ impl FromStr for Command {
 
                 // Connection settings
                 "ping" => Ok(Command::Ping),
+                "close" => Ok(Command::Close),
 
                 // Unknown command
                 _ => Err(UnknownCommand(command.to_string()))
@@ -69,7 +72,7 @@ impl FromStr for Command {
     }
 }
 
-fn parse_argument<T: FromStr>(name: String, token: Option<&str>) -> Result<T, MpdError> {
+fn parse_argument<T: FromStr>(name: String, token: Option<&str>) -> Result<T, InputError> {
     token.ok_or(MissingArgument(name.clone()))
         .and_then(|v| T::from_str(v)
             // TODO: propagate parsing error
@@ -80,7 +83,7 @@ fn parse_argument<T: FromStr>(name: String, token: Option<&str>) -> Result<T, Mp
 mod tests {
     use super::*;
     use crate::mpd::commands::Command::Ping;
-    use crate::mpd::types::Time::{AbsoluteSeconds, RelativeSeconds};
+    use crate::mpd::inputtypes::Time::{AbsoluteSeconds, RelativeSeconds};
 
     #[test]
     fn test_no_command() {

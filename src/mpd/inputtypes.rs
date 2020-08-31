@@ -1,10 +1,11 @@
-use std::str::{FromStr};
+use std::str::FromStr;
 use thiserror::Error;
 
-use crate::mpd::types::Time::{RelativeSeconds, AbsoluteSeconds};
+use crate::mpd::inputtypes::Time::{RelativeSeconds, AbsoluteSeconds};
 
+/// Errors caused by invalid client input
 #[derive(Error, Debug, PartialEq)]
-pub enum MpdError {
+pub enum InputError {
     #[error("invalid syntax '{0}'")]
     InvalidSyntax(String),
     #[error("no command")]
@@ -21,7 +22,7 @@ pub enum MpdError {
 #[derive (Debug, PartialEq)]
 pub enum Time {
     AbsoluteSeconds(f64),
-    RelativeSeconds(f64)
+    RelativeSeconds(f64),
 }
 
 impl FromStr for Time {
