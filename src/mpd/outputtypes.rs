@@ -20,6 +20,6 @@ pub enum HandlerOutput {
 pub type HandlerResult = Result<HandlerOutput, HandlerError>;
 
 /// Trait the command handlers must implement
-pub trait CommandHandler {
+pub trait CommandHandler: Send + Sync {
     fn handle(&self, command: &Command) -> HandlerResult;
 }

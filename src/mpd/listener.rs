@@ -8,6 +8,7 @@ use std::fmt::Debug;
 use thiserror::Error;
 use std::io::{Read, Write};
 use std::sync::Arc;
+use std::{thread, io};
 
 #[derive(Error, Debug)]
 enum ListenerError {
@@ -37,6 +38,10 @@ impl Listener {
         }
     }
 
+    pub fn get_address(&self) -> io::Result<String> {
+        Ok(self.tcp_listener.local_addr()?.to_string())
+    }
+
     pub fn run(&self) {
         for stream in self.tcp_listener.incoming() {
             let stream = stream.unwrap();
@@ -47,12 +52,16 @@ impl Listener {
     fn handle_connection(&self, stream: TcpStream) -> () {
         debug!("New connection");
         let mut handler = ConnectionHandler::new(stream, self.command_handlers.clone());
-        match handler.listen() {
-            Ok(_) => {},
-            Err(err) => {
-                warn!("Unrecoverable error: {}", err);
-            },
-        }
+
+        // FIXME: use a bounded thread pool
+        thread::spawn(move || {
+            match handler.listen() {
+                Ok(_) => {},
+                Err(err) => {
+                    warn!("Unrecoverable error: {}", err);
+                },
+            }
+        });
     }
 }
 
