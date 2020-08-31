@@ -21,5 +21,5 @@ pub type HandlerResult = Result<HandlerOutput, HandlerError>;
 
 /// Trait the command handlers must implement
 pub trait CommandHandler {
-    fn handle(&self, command: Command) -> HandlerResult;
+    fn handle(&self, command: &Command) -> HandlerResult;
 }
