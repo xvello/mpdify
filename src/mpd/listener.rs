@@ -31,10 +31,12 @@ pub struct Listener {
 }
 
 impl Listener {
-    pub fn new(address: String) -> Self {
+    pub fn new(address: String, mut handlers: Vec<Box<dyn CommandHandler>>) -> Self {
+        handlers.push(Box::new(BasicCommandHandler{}));
+
         Listener {
             tcp_listener: TcpListener::bind(address).unwrap(),
-            command_handlers: Arc::new(vec![Box::new(BasicCommandHandler{})]),
+            command_handlers: Arc::new(handlers),
         }
     }
 
