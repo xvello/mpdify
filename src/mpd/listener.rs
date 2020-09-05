@@ -1,15 +1,15 @@
-use crate::mpd::handlers::{HandlerError, HandlerOutput, HandlerResult, HandlerInput};
-use tokio::net::{TcpListener, TcpStream};
-use log::{debug, info, warn, error};
 use crate::mpd::commands::Command;
-use std::str::{FromStr, Utf8Error, from_utf8};
+use crate::mpd::handlers::{HandlerError, HandlerInput, HandlerOutput, HandlerResult};
 use crate::mpd::inputtypes::InputError;
+use log::{debug, error, info, warn};
 use std::fmt::Debug;
-use thiserror::Error;
-use tokio::sync::mpsc::{Sender, Receiver};
-use tokio::sync::{mpsc, oneshot};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use std::net::Shutdown;
+use std::str::{from_utf8, FromStr, Utf8Error};
+use thiserror::Error;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::{mpsc, oneshot};
 
 #[derive(Error, Debug)]
 enum ListenerError {
@@ -58,11 +58,13 @@ impl Listener {
             let (socket, _) = self.tcp_listener.accept().await.unwrap();
             let copied_handlers = self.command_handlers.to_owned();
             tokio::spawn(async move {
-                Connection{
+                Connection {
                     read_buffer: [0; 1024],
                     command_handlers: copied_handlers,
-                    socket
-                }.run().await;
+                    socket,
+                }
+                .run()
+                .await;
             });
         }
     }
@@ -75,7 +77,7 @@ struct Connection {
 }
 
 impl Connection {
-    async fn run(&mut self) -> () {
+    async fn run(&mut self) {
         debug!("New connection");
         loop {
             match self.one().await {
@@ -83,11 +85,11 @@ impl Connection {
                     if closed {
                         break;
                     }
-                },
+                }
                 Err(err) => {
                     warn!("Unrecoverable error, closing connection: {}", err);
                     break;
-                },
+                }
             }
         }
         // Unconditionally close the tcp connection
@@ -104,24 +106,26 @@ impl Connection {
         let command_string = from_utf8(&self.read_buffer[0..n])?;
         let result = match Command::from_str(command_string) {
             Err(err) => Err(ListenerError::InputError(err)),
-            Ok(command) => { match self.exec_command(command).await {
+            Ok(command) => match self.exec_command(command).await {
                 Err(err) => Err(ListenerError::HandlerError(err)),
                 Ok(result) => Ok(result),
-            }},
+            },
         };
 
         match result {
             Ok(HandlerOutput::Close) => {
                 debug!("Closing connection due to client command");
                 Ok(true)
-            },
+            }
             Ok(HandlerOutput::Ok) => {
-                self.socket.write("OK\n".as_bytes()).await?;
+                self.socket.write(b"OK\n").await?;
                 Ok(false)
-            },
+            }
             Err(err) => {
                 info!("Cannot handle command: {:?}", err);
-                self.socket.write(format!["ACK {}\n", err].as_bytes()).await?;
+                self.socket
+                    .write(format!["ACK {}\n", err].as_bytes())
+                    .await?;
                 Ok(false)
             }
         }
@@ -132,7 +136,12 @@ impl Connection {
     async fn exec_command(&mut self, command: Command) -> HandlerResult {
         for handler in self.command_handlers.iter_mut() {
             let (tx, rx) = oneshot::channel();
-            handler.send(HandlerInput{command: command.clone(), resp: tx }).await?;
+            handler
+                .send(HandlerInput {
+                    command: command.clone(),
+                    resp: tx,
+                })
+                .await?;
 
             let result = rx.await.unwrap();
             match result {
@@ -148,10 +157,10 @@ impl Connection {
 }
 
 /// Handles the ping and close commands
-pub struct BasicCommandHandler{}
+pub struct BasicCommandHandler {}
 
 impl BasicCommandHandler {
-    async fn run(mut commands: Receiver<HandlerInput>){
+    async fn run(mut commands: Receiver<HandlerInput>) {
         debug!["BasicCommandHandler entered loop"];
         while let Some(input) = commands.recv().await {
             let resp = match input.command {
@@ -160,10 +169,10 @@ impl BasicCommandHandler {
                 _ => Err(HandlerError::Unsupported),
             };
             match input.resp.send(resp) {
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(err) => {
                     warn!["Cannot send response: {:?}", err];
-                },
+                }
             }
         }
         debug!["BasicCommandHandler exited loop"];

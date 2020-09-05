@@ -1,11 +1,13 @@
 use std::str::FromStr;
 
-use crate::mpd::inputtypes::{Time, InputError};
-use crate::mpd::inputtypes::InputError::{UnknownCommand, MissingArgument, InvalidArgument, MissingCommand};
 use crate::mpd::commands::Command::{Pause, SeekCur};
+use crate::mpd::inputtypes::InputError::{
+    InvalidArgument, MissingArgument, MissingCommand, UnknownCommand,
+};
+use crate::mpd::inputtypes::{InputError, Time};
 
 // From https://www.musicpd.org/doc/html/protcurrentsongocol.html
-#[derive (Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Command {
     // Status commands
     ClearError,
@@ -38,7 +40,8 @@ impl FromStr for Command {
         // TODO: need to support quoting arguments (custom iterator)
         let mut tokens = s.split_ascii_whitespace();
 
-        tokens.next()
+        tokens
+            .next()
             .ok_or(MissingCommand)
             .and_then(|command| match command {
                 // Status commands
@@ -50,16 +53,11 @@ impl FromStr for Command {
 
                 // Playback control
                 "next" => Ok(Command::Next),
-                "pause" => {
-                    parse_argument("paused".to_string(), tokens.next())
-                        .map(|v: i8| v > 0)
-                        .map(Pause)
-                },
+                "pause" => parse_argument("paused".to_string(), tokens.next())
+                    .map(|v: i8| v > 0)
+                    .map(Pause),
                 "previous" => Ok(Command::Previous),
-                "seekcur" => {
-                    parse_argument("time".to_string(), tokens.next())
-                        .map(SeekCur)
-                }
+                "seekcur" => parse_argument("time".to_string(), tokens.next()).map(SeekCur),
                 "stop" => Ok(Command::Stop),
 
                 // Connection settings
@@ -67,16 +65,19 @@ impl FromStr for Command {
                 "close" => Ok(Command::Close),
 
                 // Unknown command
-                _ => Err(UnknownCommand(command.to_string()))
+                _ => Err(UnknownCommand(command.to_string())),
             })
     }
 }
 
 fn parse_argument<T: FromStr>(name: String, token: Option<&str>) -> Result<T, InputError> {
-    token.ok_or(MissingArgument(name.clone()))
-        .and_then(|v| T::from_str(v)
-            // TODO: propagate parsing error
-            .map_err(|_e| InvalidArgument(name)))
+    token
+        .ok_or_else(|| MissingArgument(name.clone()))
+        .and_then(|v| {
+            T::from_str(v)
+                // TODO: propagate parsing error
+                .map_err(|_e| InvalidArgument(name))
+        })
 }
 
 #[cfg(test)]
@@ -92,7 +93,10 @@ mod tests {
 
     #[test]
     fn test_unknown_command() {
-        assert_eq!(Command::from_str("unknown").err().unwrap(), UnknownCommand("unknown".to_string()));
+        assert_eq!(
+            Command::from_str("unknown").err().unwrap(),
+            UnknownCommand("unknown".to_string())
+        );
     }
 
     #[test]
@@ -105,17 +109,38 @@ mod tests {
         assert_eq!(Command::from_str("pause 1").unwrap(), Pause(true));
         assert_eq!(Command::from_str("pause 0").unwrap(), Pause(false));
 
-        assert_eq!(Command::from_str("pause").err().unwrap(), MissingArgument("paused".to_string()));
-        assert_eq!(Command::from_str("pause A").err().unwrap(), InvalidArgument("paused".to_string()));
+        assert_eq!(
+            Command::from_str("pause").err().unwrap(),
+            MissingArgument("paused".to_string())
+        );
+        assert_eq!(
+            Command::from_str("pause A").err().unwrap(),
+            InvalidArgument("paused".to_string())
+        );
     }
 
     #[test]
     fn test_seek_cur() {
-        assert_eq!(Command::from_str("seekcur 23.3").unwrap(), SeekCur(AbsoluteSeconds(23.3)));
-        assert_eq!(Command::from_str("seekcur +0.3").unwrap(), SeekCur(RelativeSeconds(0.3)));
-        assert_eq!(Command::from_str("seekcur -2").unwrap(), SeekCur(RelativeSeconds(-2.0)));
+        assert_eq!(
+            Command::from_str("seekcur 23.3").unwrap(),
+            SeekCur(AbsoluteSeconds(23.3))
+        );
+        assert_eq!(
+            Command::from_str("seekcur +0.3").unwrap(),
+            SeekCur(RelativeSeconds(0.3))
+        );
+        assert_eq!(
+            Command::from_str("seekcur -2").unwrap(),
+            SeekCur(RelativeSeconds(-2.0))
+        );
 
-        assert_eq!(Command::from_str("seekcur").err().unwrap(), MissingArgument("time".to_string()));
-        assert_eq!(Command::from_str("seekcur A").err().unwrap(), InvalidArgument("time".to_string()));
+        assert_eq!(
+            Command::from_str("seekcur").err().unwrap(),
+            MissingArgument("time".to_string())
+        );
+        assert_eq!(
+            Command::from_str("seekcur A").err().unwrap(),
+            InvalidArgument("time".to_string())
+        );
     }
 }

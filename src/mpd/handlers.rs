@@ -9,7 +9,7 @@ pub enum HandlerError {
     #[error("unsupported operation")]
     Unsupported,
     #[error(transparent)]
-    GetError(#[from] tokio::sync::mpsc::error::SendError<HandlerInput>)
+    GetError(#[from] tokio::sync::mpsc::error::SendError<HandlerInput>),
 }
 
 /// Commands can return different types of result

@@ -1,16 +1,16 @@
+use log::{debug, warn};
+use mpdify::mpd::commands::Command;
+use mpdify::mpd::handlers::{HandlerError, HandlerInput, HandlerOutput};
 use mpdify::mpd::listener::Listener;
 use std::io::{Read, Write};
-use log::{debug, warn};
-use std::time::Duration;
-use mpdify::mpd::handlers::{HandlerInput, HandlerOutput, HandlerError};
-use mpdify::mpd::commands::Command;
 use std::sync::atomic::AtomicBool;
-use std::sync::atomic::Ordering::{Release, Acquire};
+use std::sync::atomic::Ordering::{Acquire, Release};
 use std::sync::Arc;
+use std::time::Duration;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
-use tokio::net::TcpStream;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 #[tokio::test]
 async fn it_handles_two_connections() {
@@ -38,7 +38,6 @@ async fn it_handles_two_connections() {
     }
 }
 
-
 #[tokio::test]
 async fn it_calls_custom_handler() {
     init_logger();
@@ -61,10 +60,10 @@ async fn it_calls_custom_handler() {
                 _ => Err(HandlerError::Unsupported),
             };
             match input.resp.send(resp) {
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(err) => {
                     warn!["Cannot send response: {:?}", err];
-                },
+                }
             }
         }
     });
@@ -94,17 +93,25 @@ async fn it_calls_custom_handler() {
 fn init_logger() {
     let _ = pretty_env_logger::try_init();
 }
-struct Client { stream: TcpStream }
+struct Client {
+    stream: TcpStream,
+}
 
 impl Client {
     async fn new(address: String) -> Self {
-        let stream = TcpStream::connect(address).await.expect("Could not connect");
+        let stream = TcpStream::connect(address)
+            .await
+            .expect("Could not connect");
         Self { stream }
     }
 
     async fn read_bytes(&mut self) -> String {
         let mut read_buffer = [0; 16];
-        let n = self.stream.read(&mut read_buffer).await.expect("Cannot read");
+        let n = self
+            .stream
+            .read(&mut read_buffer)
+            .await
+            .expect("Cannot read");
         let result = std::str::from_utf8(&read_buffer[0..n]).expect("Invalid UTF8");
         debug!("Read back result {:?}", result);
         result.to_string()
@@ -112,6 +119,9 @@ impl Client {
 
     async fn send_command(&mut self, command: &str) {
         debug!("Sending command {:?}", command);
-        self.stream.write(format!["{}\n", command].as_bytes()).await.expect("Error sending command");
+        self.stream
+            .write(format!["{}\n", command].as_bytes())
+            .await
+            .expect("Error sending command");
     }
 }

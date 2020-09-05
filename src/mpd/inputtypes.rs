@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use thiserror::Error;
 
-use crate::mpd::inputtypes::Time::{RelativeSeconds, AbsoluteSeconds};
+use crate::mpd::inputtypes::Time::{AbsoluteSeconds, RelativeSeconds};
 
 /// Errors caused by invalid client input
 #[derive(Error, Debug, PartialEq)]
@@ -19,7 +19,7 @@ pub enum InputError {
 }
 
 /// Parses a float, optionally prefixed by + or -
-#[derive (Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Time {
     AbsoluteSeconds(f64),
     RelativeSeconds(f64),
@@ -36,7 +36,7 @@ impl FromStr for Time {
                 } else {
                     Ok(AbsoluteSeconds(value))
                 }
-            },
+            }
             Err(e) => Err(e),
         }
     }
@@ -63,7 +63,15 @@ mod tests {
     #[test]
     fn test_parse_time_errors() {
         // TODO: can we assert on the error kind instead?
-        assert!(Time::from_str("").err().unwrap().to_string().contains("empty"));
-        assert!(Time::from_str("A").err().unwrap().to_string().contains("invalid"));
+        assert!(Time::from_str("")
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("empty"));
+        assert!(Time::from_str("A")
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("invalid"));
     }
 }
