@@ -5,7 +5,7 @@ use crate::mpd::inputtypes::InputError::{UnknownCommand, MissingArgument, Invali
 use crate::mpd::commands::Command::{Pause, SeekCur};
 
 // From https://www.musicpd.org/doc/html/protcurrentsongocol.html
-#[derive (Debug, PartialEq)]
+#[derive (Debug, PartialEq, Clone)]
 pub enum Command {
     // Status commands
     ClearError,

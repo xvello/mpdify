@@ -19,7 +19,7 @@ pub enum InputError {
 }
 
 /// Parses a float, optionally prefixed by + or -
-#[derive (Debug, PartialEq)]
+#[derive (Debug, Clone, PartialEq)]
 pub enum Time {
     AbsoluteSeconds(f64),
     RelativeSeconds(f64),

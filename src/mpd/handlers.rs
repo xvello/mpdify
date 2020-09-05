@@ -1,15 +1,19 @@
 use thiserror::Error;
 
 use crate::mpd::commands::Command;
+use tokio::sync::oneshot::Sender;
 
 /// Errors caused by command handling
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug)]
 pub enum HandlerError {
     #[error("unsupported operation")]
     Unsupported,
+    #[error(transparent)]
+    GetError(#[from] tokio::sync::mpsc::error::SendError<HandlerInput>)
 }
 
 /// Commands can return different types of result
+#[derive(Debug, PartialEq)]
 pub enum HandlerOutput {
     /// Executed OK, no results to return
     Ok,
@@ -19,7 +23,9 @@ pub enum HandlerOutput {
 
 pub type HandlerResult = Result<HandlerOutput, HandlerError>;
 
-/// Trait the command handlers must implement
-pub trait CommandHandler: Send + Sync {
-    fn handle(&self, command: &Command) -> HandlerResult;
+/// Input for the handlers
+#[derive(Debug)]
+pub struct HandlerInput {
+    pub command: Command,
+    pub resp: Sender<HandlerResult>,
 }
