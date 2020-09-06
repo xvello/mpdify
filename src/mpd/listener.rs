@@ -6,8 +6,8 @@ use std::fmt::Debug;
 use std::net::Shutdown;
 use std::str::{from_utf8, FromStr, Utf8Error};
 use thiserror::Error;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::prelude::*;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::{mpsc, oneshot};
 
