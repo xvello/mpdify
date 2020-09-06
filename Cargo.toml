@@ -11,3 +11,5 @@ thiserror = "1.0"
 log = "0.4"
 pretty_env_logger = "0.4"
 tokio = { version = "0.2.22", features = ["full"] }
+dbus = "0.8.4"
+dbus-tokio = { version = "0.5.2" }
