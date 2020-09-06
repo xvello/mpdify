@@ -76,9 +76,17 @@ struct Connection {
     socket: TcpStream,
 }
 
+pub static MPD_HELLO_STRING: &[u8] = b"OK MPD 0.21.25\n";
+
 impl Connection {
     async fn run(&mut self) {
-        debug!("New connection");
+        debug!("New connection, saying hello");
+        if let Err(err) = self.socket.write(MPD_HELLO_STRING).await {
+            warn!("Unrecoverable error, closing connection: {}", err);
+            let _ = self.socket.shutdown(Shutdown::Both);
+            return;
+        }
+
         loop {
             match self.one().await {
                 Ok(closed) => {

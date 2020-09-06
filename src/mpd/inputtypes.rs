@@ -14,8 +14,8 @@ pub enum InputError {
     UnknownCommand(String),
     #[error("missing argument {0}")]
     MissingArgument(String),
-    #[error("invalid value for argument {0}")]
-    InvalidArgument(String),
+    #[error("invalid value for argument {0}: {1}")]
+    InvalidArgument(String, String),
 }
 
 /// Parses a float, optionally prefixed by + or -

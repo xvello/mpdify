@@ -10,6 +10,8 @@ pub enum HandlerError {
     Unsupported,
     #[error(transparent)]
     GetError(#[from] tokio::sync::mpsc::error::SendError<HandlerInput>),
+    #[error("{0}")]
+    FromString(String),
 }
 
 /// Commands can return different types of result

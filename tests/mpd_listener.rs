@@ -1,16 +1,14 @@
 use log::{debug, warn};
 use mpdify::mpd::commands::Command;
 use mpdify::mpd::handlers::{HandlerError, HandlerInput, HandlerOutput};
-use mpdify::mpd::listener::Listener;
-use std::io::{Read, Write};
+use mpdify::mpd::listener::{Listener, MPD_HELLO_STRING};
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering::{Acquire, Release};
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
-use tokio::sync::mpsc::Sender;
+use tokio::sync::mpsc::{Receiver, Sender};
 
 #[tokio::test]
 async fn it_handles_two_connections() {
@@ -43,32 +41,11 @@ async fn it_calls_custom_handler() {
     init_logger();
 
     // Run custom handler
-    let (pause_tx, mut pause_rx) = mpsc::channel(8);
-    let handlers: Vec<Sender<HandlerInput>> = vec![pause_tx];
-    let is_paused = Arc::new(AtomicBool::new(false));
-    let cloned_paused = is_paused.clone();
+    let (mut handler, pause_tx, is_paused) = CustomHandler::new();
+    tokio::spawn(async move { handler.run().await });
 
-    tokio::spawn(async move {
-        debug!["starting custom handler"];
-        while let Some(input) = pause_rx.recv().await {
-            let resp = match input.command {
-                Command::Pause(value) => {
-                    debug!["Called custom pause handler with paused={}", value];
-                    cloned_paused.store(value, Release);
-                    Ok(HandlerOutput::Ok)
-                }
-                _ => Err(HandlerError::Unsupported),
-            };
-            match input.resp.send(resp) {
-                Ok(_) => {}
-                Err(err) => {
-                    warn!["Cannot send response: {:?}", err];
-                }
-            }
-        }
-    });
-
-    let mut listener = Listener::new("127.0.0.1:0".to_string(), handlers).await;
+    // Run listener
+    let mut listener = Listener::new("127.0.0.1:0".to_string(), vec![pause_tx]).await;
     let address = listener.get_address().expect("Cannot get server address");
     debug!("Listening on random port {}", address);
     tokio::spawn(async move { listener.run().await });
@@ -79,7 +56,7 @@ async fn it_calls_custom_handler() {
     client.send_command("pause 1").await;
     assert_eq!("OK\n", client.read_bytes().await);
     assert_eq!(true, is_paused.load(Acquire));
-    client.send_command("pause 0").await;
+    client.send_command("pause \"0\"").await;
     assert_eq!("OK\n", client.read_bytes().await);
     assert_eq!(false, is_paused.load(Acquire));
 
@@ -93,6 +70,41 @@ async fn it_calls_custom_handler() {
 fn init_logger() {
     let _ = pretty_env_logger::try_init();
 }
+
+struct CustomHandler {
+    is_paused: Arc<AtomicBool>,
+    rx: Receiver<HandlerInput>,
+}
+
+impl CustomHandler {
+    fn new() -> (Self, Sender<HandlerInput>, Arc<AtomicBool>) {
+        let (tx, rx) = mpsc::channel(16);
+        let is_paused = Arc::new(AtomicBool::new(false));
+        let cloned_paused = is_paused.clone();
+        (Self { is_paused, rx }, tx, cloned_paused)
+    }
+
+    async fn run(&mut self) {
+        debug!["starting custom handler"];
+        while let Some(input) = self.rx.recv().await {
+            let resp = match input.command {
+                Command::Pause(value) => {
+                    debug!["Called custom pause handler with paused={}", value];
+                    self.is_paused.store(value, Release);
+                    Ok(HandlerOutput::Ok)
+                }
+                _ => Err(HandlerError::Unsupported),
+            };
+            match input.resp.send(resp) {
+                Ok(_) => {}
+                Err(err) => {
+                    warn!["Cannot send response: {:?}", err];
+                }
+            }
+        }
+    }
+}
+
 struct Client {
     stream: TcpStream,
 }
@@ -102,7 +114,9 @@ impl Client {
         let stream = TcpStream::connect(address)
             .await
             .expect("Could not connect");
-        Self { stream }
+        let mut me = Self { stream };
+        assert_eq!(MPD_HELLO_STRING, me.read_bytes().await.as_str().as_bytes());
+        me
     }
 
     async fn read_bytes(&mut self) -> String {

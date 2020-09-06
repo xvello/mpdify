@@ -5,6 +5,7 @@ use crate::mpd::inputtypes::InputError::{
     InvalidArgument, MissingArgument, MissingCommand, UnknownCommand,
 };
 use crate::mpd::inputtypes::{InputError, Time};
+use std::borrow::Borrow;
 
 // From https://www.musicpd.org/doc/html/protcurrentsongocol.html
 #[derive(Debug, PartialEq, Clone)]
@@ -37,13 +38,13 @@ impl FromStr for Command {
     type Err = InputError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // TODO: need to support quoting arguments (custom iterator)
-        let mut tokens = s.split_ascii_whitespace();
+        let tokenized = tokenize_command(s);
+        let mut tokens = tokenized.iter();
 
         tokens
             .next()
             .ok_or(MissingCommand)
-            .and_then(|command| match command {
+            .and_then(|command| match command.borrow() {
                 // Status commands
                 "clearerror" => Ok(Command::ClearError),
                 "currentsong" => Ok(Command::CurrentSong),
@@ -70,14 +71,48 @@ impl FromStr for Command {
     }
 }
 
-fn parse_argument<T: FromStr>(name: String, token: Option<&str>) -> Result<T, InputError> {
+fn parse_argument<T: FromStr>(name: String, token: Option<&String>) -> Result<T, InputError> {
     token
         .ok_or_else(|| MissingArgument(name.clone()))
         .and_then(|v| {
-            T::from_str(v)
+            T::from_str(v.borrow())
                 // TODO: propagate parsing error
-                .map_err(|_e| InvalidArgument(name))
+                .map_err(|_e| InvalidArgument(name, v.to_string()))
         })
+}
+
+fn tokenize_command(input: &str) -> Vec<String> {
+    let mut tokens = vec![];
+    let mut is_escaped = false;
+    let mut is_quoted = false;
+    let mut current = String::new();
+
+    for char in input.chars() {
+        // Copy escaped special characters
+        if is_escaped {
+            current.push(char);
+            is_escaped = false;
+            continue;
+        }
+
+        match char {
+            '\\' => is_escaped = true,
+            '"' | '\'' => is_quoted = !is_quoted,
+            w if w.is_whitespace() => {
+                if is_quoted {
+                    current.push(char)
+                } else if !current.is_empty() {
+                    tokens.push(current);
+                    current = String::new();
+                }
+            }
+            _ => current.push(char),
+        }
+    }
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+    tokens
 }
 
 #[cfg(test)]
@@ -115,7 +150,7 @@ mod tests {
         );
         assert_eq!(
             Command::from_str("pause A").err().unwrap(),
-            InvalidArgument("paused".to_string())
+            InvalidArgument("paused".to_string(), "A".to_string())
         );
     }
 
@@ -140,7 +175,25 @@ mod tests {
         );
         assert_eq!(
             Command::from_str("seekcur A").err().unwrap(),
-            InvalidArgument("time".to_string())
+            InvalidArgument("time".to_string(), "A".to_string())
         );
+    }
+
+    #[test]
+    fn test_tokenize_command() {
+        assert_eq!(tokenize_command("test"), vec!["test"]);
+        assert_eq!(tokenize_command("simple space"), vec!["simple", "space"]);
+        assert_eq!(tokenize_command("\"double quoted\""), vec!["double quoted"]);
+        assert_eq!(tokenize_command("\'single quoted\'"), vec!["single quoted"]);
+        assert_eq!(tokenize_command("\'quo\\\' ted\'"), vec!["quo\' ted"]);
+        assert_eq!(tokenize_command("empty last \"\""), vec!["empty", "last"]);
+        assert_eq!(
+            tokenize_command("command \"quoted arg\" unquoted\\\' arg "),
+            vec!["command", "quoted arg", "unquoted\'", "arg"]
+        );
+
+        assert_eq!(tokenize_command("slashed\\\\"), vec!["slashed\\"]);
+        assert_eq!(tokenize_command("pause 1"), vec!["pause", "1"]);
+        assert_eq!(tokenize_command("pause \"1\""), vec!["pause", "1"]);
     }
 }
