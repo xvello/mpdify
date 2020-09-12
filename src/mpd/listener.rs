@@ -3,10 +3,11 @@ use crate::mpd::handlers::{HandlerError, HandlerInput, HandlerOutput, HandlerRes
 use crate::mpd::inputtypes::InputError;
 use log::{debug, error, info, warn};
 use std::fmt::Debug;
-use std::net::Shutdown;
-use std::str::{from_utf8, FromStr, Utf8Error};
+use std::str::{FromStr, Utf8Error};
 use thiserror::Error;
-use tokio::net::{TcpListener, TcpStream};
+use tokio::io::{BufReader, Lines};
+use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
+use tokio::net::TcpListener;
 use tokio::prelude::*;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::{mpsc, oneshot};
@@ -56,12 +57,14 @@ impl MpdListener {
     pub async fn run(&mut self) {
         loop {
             let (socket, _) = self.tcp_listener.accept().await.unwrap();
+            let (read, write) = socket.into_split();
+            let read_lines = BufReader::new(read).lines();
             let copied_handlers = self.command_handlers.to_owned();
             tokio::spawn(async move {
                 Connection {
-                    read_buffer: [0; 1024],
                     command_handlers: copied_handlers,
-                    socket,
+                    read_lines,
+                    write,
                 }
                 .run()
                 .await;
@@ -71,9 +74,9 @@ impl MpdListener {
 }
 
 struct Connection {
-    read_buffer: [u8; 1024],
     command_handlers: Handlers,
-    socket: TcpStream,
+    read_lines: Lines<BufReader<OwnedReadHalf>>,
+    write: OwnedWriteHalf,
 }
 
 pub static MPD_HELLO_STRING: &[u8] = b"OK MPD 0.21.25\n";
@@ -81,9 +84,8 @@ pub static MPD_HELLO_STRING: &[u8] = b"OK MPD 0.21.25\n";
 impl Connection {
     async fn run(&mut self) {
         debug!("New connection, saying hello");
-        if let Err(err) = self.socket.write(MPD_HELLO_STRING).await {
+        if let Err(err) = self.write.write(MPD_HELLO_STRING).await {
             warn!("Unrecoverable error, closing connection: {}", err);
-            let _ = self.socket.shutdown(Shutdown::Both);
             return;
         }
 
@@ -100,18 +102,16 @@ impl Connection {
                 }
             }
         }
-        // Unconditionally close the tcp connection
-        let _ = self.socket.shutdown(Shutdown::Both);
     }
 
     async fn one(&mut self) -> Result<bool, ListenerError> {
-        let n = self.socket.read(&mut self.read_buffer).await?;
-        if n == 0 {
+        let line = self.read_lines.next_line().await?;
+        if line.is_none() {
             debug!("Client closed the connection");
             return Ok(true);
         }
 
-        let command_string = from_utf8(&self.read_buffer[0..n])?;
+        let command_string = line.as_deref().unwrap();
 
         // FIXME: stop skipping command lists
         if command_string.starts_with("command_list_") {
@@ -133,21 +133,21 @@ impl Connection {
                 Ok(true)
             }
             Ok(HandlerOutput::Ok) => {
-                self.socket.write(b"OK\n").await?;
+                self.write.write(b"OK\n").await?;
                 Ok(false)
             }
             Ok(HandlerOutput::Data(data)) => {
                 for (key, value) in data {
-                    self.socket
+                    self.write
                         .write(format!["{}: {}\n", key, value].as_bytes())
                         .await?;
                 }
-                self.socket.write(b"OK\n").await?;
+                self.write.write(b"OK\n").await?;
                 Ok(false)
             }
             Err(err) => {
                 info!("Cannot handle command: {:?}", err);
-                self.socket
+                self.write
                     .write(format!["ACK {}\n", err].as_bytes())
                     .await?;
                 Ok(false)
