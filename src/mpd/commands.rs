@@ -1,6 +1,8 @@
 use std::str::FromStr;
 
-use crate::mpd::commands::Command::{ChangeVolume, Pause, SeekCur, SetVolume, SpotifyAuth};
+use crate::mpd::commands::Command::{
+    ChangeVolume, Pause, Play, PlayId, SeekCur, SetVolume, SpotifyAuth,
+};
 use crate::mpd::inputtypes::InputError::{
     InvalidArgument, MissingArgument, MissingCommand, UnknownCommand,
 };
@@ -21,8 +23,8 @@ pub enum Command {
 
     // Playback control
     Next,
-    Pause(bool),
-    Play(Option<u32>),
+    Pause(Option<bool>), // None means toggle
+    Play(Option<u32>),   // None means unpause
     PlayId(Option<u32>),
     Previous,
     // Seek, SeekId
@@ -61,16 +63,18 @@ impl FromStr for Command {
 
                 // Playback control
                 "next" => Ok(Command::Next),
-                "pause" => parse_argument("paused".to_string(), tokens.next())
-                    .map(|v: i8| v > 0)
+                "pause" => parse_opt("paused".to_string(), tokens.next())
+                    .map(|o: Option<i8>| o.map(|v| v > 0))
                     .map(Pause),
                 "previous" => Ok(Command::Previous),
-                "seekcur" => parse_argument("time".to_string(), tokens.next()).map(SeekCur),
+                "seekcur" => parse_arg("time".to_string(), tokens.next()).map(SeekCur),
                 "stop" => Ok(Command::Stop),
+                "play" => parse_opt("pos".to_string(), tokens.next()).map(Play),
+                "playid" => parse_opt("id".to_string(), tokens.next()).map(PlayId),
 
                 // Volume
-                "setvol" => parse_argument("vol".to_string(), tokens.next()).map(SetVolume),
-                "volume" => parse_argument("change".to_string(), tokens.next()).map(ChangeVolume),
+                "setvol" => parse_arg("vol".to_string(), tokens.next()).map(SetVolume),
+                "volume" => parse_arg("change".to_string(), tokens.next()).map(ChangeVolume),
 
                 // Connection settings
                 "ping" => Ok(Command::Ping),
@@ -85,7 +89,7 @@ impl FromStr for Command {
     }
 }
 
-fn parse_argument<T: FromStr>(name: String, token: Option<&String>) -> Result<T, InputError> {
+fn parse_arg<T: FromStr>(name: String, token: Option<&String>) -> Result<T, InputError> {
     let parsed: Option<T> = parse_opt(name.clone(), token)?;
     match parsed {
         None => Err(MissingArgument(name)),
@@ -165,13 +169,10 @@ mod tests {
 
     #[test]
     fn test_pause() {
-        assert_eq!(Command::from_str("pause 1").unwrap(), Pause(true));
-        assert_eq!(Command::from_str("pause 0").unwrap(), Pause(false));
+        assert_eq!(Command::from_str("pause 1").unwrap(), Pause(Some(true)));
+        assert_eq!(Command::from_str("pause 0").unwrap(), Pause(Some(false)));
+        assert_eq!(Command::from_str("pause").unwrap(), Pause(None));
 
-        assert_eq!(
-            Command::from_str("pause").err().unwrap(),
-            MissingArgument("paused".to_string())
-        );
         assert_eq!(
             Command::from_str("pause A").err().unwrap(),
             InvalidArgument("paused".to_string(), "A".to_string())

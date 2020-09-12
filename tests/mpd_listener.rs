@@ -92,7 +92,7 @@ impl CustomHandler {
         debug!["starting custom handler"];
         while let Some(input) = self.rx.recv().await {
             let resp = match input.command {
-                Command::Pause(value) => {
+                Command::Pause(Some(value)) => {
                     debug!["Called custom pause handler with paused={}", value];
                     self.is_paused.store(value, Release);
                     Ok(HandlerOutput::Ok)

@@ -90,8 +90,11 @@ impl MprisHandler {
         // Other commands map to dbus calls
         match command {
             Command::Ping => self.proxy.ping(),
-            Command::Pause(true) => self.proxy.pause(),
-            Command::Pause(false) => self.proxy.play(),
+            Command::Pause(Some(true)) => self.proxy.pause(),
+            Command::Pause(Some(false)) => self.proxy.play(),
+            Command::Pause(None) => self.proxy.play_pause(),
+            Command::Play(None) => self.proxy.play(),
+
             Command::Next => self.proxy.next(),
             Command::Previous => self.proxy.previous(),
             _ => return Err(Unsupported),
