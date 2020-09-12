@@ -1,2 +1,5 @@
+.env
+.refresh_token
+
 /target
 /.idea/

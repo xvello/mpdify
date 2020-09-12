@@ -1,4 +1,5 @@
-use mpdify::mpd::listener::Listener;
+use mpdify::aspotify::handler::SpotifyHandler;
+use mpdify::mpd::listener::MpdListener;
 use mpdify::mpris::handler::MprisHandler;
 use mpdify::mpris::OFFICIAL_SPOTIFY_DEST;
 
@@ -6,11 +7,17 @@ use mpdify::mpris::OFFICIAL_SPOTIFY_DEST;
 pub async fn main() -> () {
     pretty_env_logger::init();
 
-    let (mut mpris_handler, mpris_tx) = MprisHandler::new(OFFICIAL_SPOTIFY_DEST.to_string()).await;
-    tokio::spawn(async move {
-        mpris_handler.run().await;
-    });
+    let mpris_target = OFFICIAL_SPOTIFY_DEST.to_string();
+    let (mut mpris, mpris_tx) = MprisHandler::new(mpris_target).await;
+    let (mut spotify, spotify_tx) = SpotifyHandler::new().await;
+    let handler_tx = vec![mpris_tx, spotify_tx];
 
-    let mut listener = Listener::new("0.0.0.0:6600".to_string(), vec![mpris_tx]).await;
-    listener.run().await;
+    let mut mpd = MpdListener::new("0.0.0.0:6600".to_string(), handler_tx).await;
+
+    let tasks = vec![
+        tokio::spawn(async move { mpris.run().await }),
+        tokio::spawn(async move { spotify.run().await }),
+        tokio::spawn(async move { mpd.run().await }),
+    ];
+    futures::future::join_all(tasks).await;
 }

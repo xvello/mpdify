@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use crate::mpd::commands::Command::{Pause, SeekCur};
+use crate::mpd::commands::Command::{ChangeVolume, Pause, SeekCur, SetVolume, SpotifyAuth};
 use crate::mpd::inputtypes::InputError::{
     InvalidArgument, MissingArgument, MissingCommand, UnknownCommand,
 };
@@ -29,9 +29,16 @@ pub enum Command {
     SeekCur(Time),
     Stop,
 
+    // Volume
+    SetVolume(u32),    // Absolute value
+    ChangeVolume(i32), // Relative change
+
     // Connection settings
     Ping,
     Close,
+
+    // Custom extension to support oauth2 authentication
+    SpotifyAuth(Option<String>),
 }
 
 impl FromStr for Command {
@@ -61,9 +68,16 @@ impl FromStr for Command {
                 "seekcur" => parse_argument("time".to_string(), tokens.next()).map(SeekCur),
                 "stop" => Ok(Command::Stop),
 
+                // Volume
+                "setvol" => parse_argument("vol".to_string(), tokens.next()).map(SetVolume),
+                "volume" => parse_argument("change".to_string(), tokens.next()).map(ChangeVolume),
+
                 // Connection settings
                 "ping" => Ok(Command::Ping),
                 "close" => Ok(Command::Close),
+
+                // Custom extension to support oauth2 authentication
+                "auth" => parse_opt("url".to_string(), tokens.next()).map(SpotifyAuth),
 
                 // Unknown command
                 _ => Err(UnknownCommand(command.to_string())),
@@ -72,13 +86,23 @@ impl FromStr for Command {
 }
 
 fn parse_argument<T: FromStr>(name: String, token: Option<&String>) -> Result<T, InputError> {
-    token
-        .ok_or_else(|| MissingArgument(name.clone()))
-        .and_then(|v| {
+    let parsed: Option<T> = parse_opt(name.clone(), token)?;
+    match parsed {
+        None => Err(MissingArgument(name)),
+        Some(v) => Ok(v),
+    }
+}
+
+fn parse_opt<T: FromStr>(name: String, token: Option<&String>) -> Result<Option<T>, InputError> {
+    match token {
+        None => Ok(None),
+        Some(v) => {
             T::from_str(v.borrow())
+                .map(Option::Some)
                 // TODO: propagate parsing error
                 .map_err(|_e| InvalidArgument(name, v.to_string()))
-        })
+        }
+    }
 }
 
 fn tokenize_command(input: &str) -> Vec<String> {

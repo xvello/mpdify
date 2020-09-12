@@ -1,7 +1,7 @@
 use log::{debug, warn};
 use mpdify::mpd::commands::Command;
 use mpdify::mpd::handlers::{HandlerError, HandlerInput, HandlerOutput};
-use mpdify::mpd::listener::{Listener, MPD_HELLO_STRING};
+use mpdify::mpd::listener::{MpdListener, MPD_HELLO_STRING};
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering::{Acquire, Release};
 use std::sync::Arc;
@@ -14,7 +14,7 @@ use tokio::sync::mpsc::{Receiver, Sender};
 async fn it_handles_two_connections() {
     init_logger();
 
-    let mut listener = Listener::new("127.0.0.1:0".to_string(), vec![]).await;
+    let mut listener = MpdListener::new("127.0.0.1:0".to_string(), vec![]).await;
     let address = listener.get_address().expect("Cannot get server address");
 
     debug!("Listening on random port {}", address);
@@ -45,7 +45,7 @@ async fn it_calls_custom_handler() {
     tokio::spawn(async move { handler.run().await });
 
     // Run listener
-    let mut listener = Listener::new("127.0.0.1:0".to_string(), vec![pause_tx]).await;
+    let mut listener = MpdListener::new("127.0.0.1:0".to_string(), vec![pause_tx]).await;
     let address = listener.get_address().expect("Cannot get server address");
     debug!("Listening on random port {}", address);
     tokio::spawn(async move { listener.run().await });
@@ -59,6 +59,10 @@ async fn it_calls_custom_handler() {
     client.send_command("pause \"0\"").await;
     assert_eq!("OK\n", client.read_bytes().await);
     assert_eq!(false, is_paused.load(Acquire));
+
+    // Status command is sent to our handler
+    client.send_command("status").await;
+    assert_eq!("one: 1\ntwo: 2\nOK\n", client.read_bytes().await);
 
     // Ping is still handled by the default handler
     client.send_command("ping").await;
@@ -93,6 +97,13 @@ impl CustomHandler {
                     self.is_paused.store(value, Release);
                     Ok(HandlerOutput::Ok)
                 }
+                Command::Status => {
+                    debug!["Called custom status handler"];
+                    Ok(HandlerOutput::Data(vec![
+                        ("one".to_string(), "1".to_string()),
+                        ("two".to_string(), "2".to_string()),
+                    ]))
+                }
                 _ => Err(HandlerError::Unsupported),
             };
             match input.resp.send(resp) {
@@ -120,7 +131,7 @@ impl Client {
     }
 
     async fn read_bytes(&mut self) -> String {
-        let mut read_buffer = [0; 16];
+        let mut read_buffer = [0; 32];
         let n = self
             .stream
             .read(&mut read_buffer)

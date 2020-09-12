@@ -28,12 +28,12 @@ enum ListenerError {
 
 type Handlers = Vec<Sender<HandlerInput>>;
 
-pub struct Listener {
+pub struct MpdListener {
     tcp_listener: TcpListener,
     command_handlers: Handlers,
 }
 
-impl Listener {
+impl MpdListener {
     pub async fn new(address: String, mut handlers: Handlers) -> Self {
         // Run basic fallback handler
         let (tx, rx) = mpsc::channel(8);
@@ -43,7 +43,7 @@ impl Listener {
             BasicCommandHandler::run(rx).await;
         });
 
-        Listener {
+        MpdListener {
             tcp_listener: TcpListener::bind(address).await.unwrap(),
             command_handlers: handlers,
         }
@@ -112,6 +112,13 @@ impl Connection {
         }
 
         let command_string = from_utf8(&self.read_buffer[0..n])?;
+
+        // FIXME: stop skipping command lists
+        if command_string.starts_with("command_list_") {
+            debug!["Ignoring command {}", command_string];
+            return Ok(false);
+        }
+
         let result = match Command::from_str(command_string) {
             Err(err) => Err(ListenerError::InputError(err)),
             Ok(command) => match self.exec_command(command).await {
@@ -126,6 +133,15 @@ impl Connection {
                 Ok(true)
             }
             Ok(HandlerOutput::Ok) => {
+                self.socket.write(b"OK\n").await?;
+                Ok(false)
+            }
+            Ok(HandlerOutput::Data(data)) => {
+                for (key, value) in data {
+                    self.socket
+                        .write(format!["{}: {}\n", key, value].as_bytes())
+                        .await?;
+                }
                 self.socket.write(b"OK\n").await?;
                 Ok(false)
             }
