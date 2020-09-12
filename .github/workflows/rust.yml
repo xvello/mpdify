@@ -1,0 +1,44 @@
+name: Continuous integration
+on: [push, pull_request]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install system deps
+        run: sudo apt-get install libdbus-1-dev pkg-config
+      - name: Install rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          components: rustfmt, clippy
+          override: true
+      - uses: actions/checkout@v2
+      - name: Cache rust dependencies
+        uses: actions/cache@v1.1.2
+        with:
+          path: target
+          key: ${{ runner.OS }}-target-${{ hashFiles('**/Cargo.lock') }}
+      - name: cargo build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+      - name: cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+      - name: rustfmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+      - name: clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: -- -D warnings
