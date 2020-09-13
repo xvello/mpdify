@@ -1,12 +1,12 @@
 use std::str::FromStr;
 
-use crate::mpd::commands::Command::{
+use crate::mpd_protocol::commands::Command::{
     ChangeVolume, Pause, Play, PlayId, SeekCur, SetVolume, SpotifyAuth,
 };
-use crate::mpd::inputtypes::InputError::{
+use crate::mpd_protocol::types::InputError::{
     InvalidArgument, MissingArgument, MissingCommand, UnknownCommand,
 };
-use crate::mpd::inputtypes::{InputError, Time};
+use crate::mpd_protocol::types::{InputError, RelativeFloat};
 use std::borrow::Borrow;
 
 // From https://www.musicpd.org/doc/html/protcurrentsongocol.html
@@ -28,7 +28,7 @@ pub enum Command {
     PlayId(Option<u32>),
     Previous,
     // Seek, SeekId
-    SeekCur(Time),
+    SeekCur(RelativeFloat), // Seconds
     Stop,
 
     // Volume
@@ -146,8 +146,8 @@ fn tokenize_command(input: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mpd::commands::Command::Ping;
-    use crate::mpd::inputtypes::Time::{AbsoluteSeconds, RelativeSeconds};
+    use crate::mpd_protocol::commands::Command::Ping;
+    use crate::mpd_protocol::types::RelativeFloat::{Absolute, Relative};
 
     #[test]
     fn test_no_command() {
@@ -183,15 +183,15 @@ mod tests {
     fn test_seek_cur() {
         assert_eq!(
             Command::from_str("seekcur 23.3").unwrap(),
-            SeekCur(AbsoluteSeconds(23.3))
+            SeekCur(Absolute(23.3))
         );
         assert_eq!(
             Command::from_str("seekcur +0.3").unwrap(),
-            SeekCur(RelativeSeconds(0.3))
+            SeekCur(Relative(0.3))
         );
         assert_eq!(
             Command::from_str("seekcur -2").unwrap(),
-            SeekCur(RelativeSeconds(-2.0))
+            SeekCur(Relative(-2.0))
         );
 
         assert_eq!(

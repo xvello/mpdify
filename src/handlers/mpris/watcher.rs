@@ -1,4 +1,4 @@
-use crate::mpris::MEDIAPLAYER2_PATH;
+use crate::handlers::mpris::MEDIAPLAYER2_PATH;
 use dbus::message::SignalArgs;
 use dbus::nonblock::stdintf::org_freedesktop_dbus::PropertiesPropertiesChanged;
 use dbus::nonblock::{MsgMatch, SyncConnection};

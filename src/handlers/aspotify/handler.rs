@@ -1,5 +1,4 @@
-use crate::mpd::commands::Command;
-use crate::mpd::handlers::{HandlerError, HandlerInput, HandlerOutput, HandlerResult};
+use crate::mpd_protocol::*;
 use aspotify::{Client, ClientCredentials, Scope};
 use log::{debug, warn};
 use std::fs;

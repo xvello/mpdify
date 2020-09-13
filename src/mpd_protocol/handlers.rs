@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::mpd::commands::Command;
+use crate::mpd_protocol::commands::Command;
 use tokio::sync::oneshot::Sender;
 
 /// Errors caused by command handling

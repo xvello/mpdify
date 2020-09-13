@@ -1,7 +1,6 @@
 use log::{debug, warn};
-use mpdify::mpd::commands::Command;
-use mpdify::mpd::handlers::{HandlerError, HandlerInput, HandlerOutput};
-use mpdify::mpd::listener::{MpdListener, MPD_HELLO_STRING};
+use mpdify::listeners::mpd::MpdListener;
+use mpdify::mpd_protocol::{Command, HandlerError, HandlerInput, HandlerOutput};
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering::{Acquire, Release};
 use std::sync::Arc;
@@ -126,7 +125,10 @@ impl Client {
             .await
             .expect("Could not connect");
         let mut me = Self { stream };
-        assert_eq!(MPD_HELLO_STRING, me.read_bytes().await.as_str().as_bytes());
+        assert_eq!(
+            b"OK MPD 0.21.25\n",
+            me.read_bytes().await.as_str().as_bytes()
+        );
         me
     }
 

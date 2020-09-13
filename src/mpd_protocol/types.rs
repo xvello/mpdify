@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use thiserror::Error;
 
-use crate::mpd::inputtypes::Time::{AbsoluteSeconds, RelativeSeconds};
+use crate::mpd_protocol::types::RelativeFloat::{Absolute, Relative};
 
 /// Errors caused by invalid client input
 #[derive(Error, Debug, PartialEq)]
@@ -20,21 +20,21 @@ pub enum InputError {
 
 /// Parses a float, optionally prefixed by + or -
 #[derive(Debug, Clone, PartialEq)]
-pub enum Time {
-    AbsoluteSeconds(f64),
-    RelativeSeconds(f64),
+pub enum RelativeFloat {
+    Absolute(f64),
+    Relative(f64),
 }
 
-impl FromStr for Time {
+impl FromStr for RelativeFloat {
     type Err = std::num::ParseFloatError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match f64::from_str(s) {
             Ok(value) => {
                 if s.starts_with('+') || s.starts_with('-') {
-                    Ok(RelativeSeconds(value))
+                    Ok(Relative(value))
                 } else {
-                    Ok(AbsoluteSeconds(value))
+                    Ok(Absolute(value))
                 }
             }
             Err(e) => Err(e),
@@ -48,27 +48,27 @@ mod tests {
 
     #[test]
     fn test_parse_time_absolute() {
-        assert_eq!(Time::from_str("3.14").unwrap(), AbsoluteSeconds(3.14));
-        assert_eq!(Time::from_str("0.5").unwrap(), AbsoluteSeconds(0.5));
-        assert_eq!(Time::from_str("0").unwrap(), AbsoluteSeconds(0 as f64));
+        assert_eq!(RelativeFloat::from_str("3.14").unwrap(), Absolute(3.14));
+        assert_eq!(RelativeFloat::from_str("0.5").unwrap(), Absolute(0.5));
+        assert_eq!(RelativeFloat::from_str("0").unwrap(), Absolute(0 as f64));
     }
 
     #[test]
     fn test_parse_time_relative() {
-        assert_eq!(Time::from_str("+3.14").unwrap(), RelativeSeconds(3.14));
-        assert_eq!(Time::from_str("-9.99").unwrap(), RelativeSeconds(-9.99));
-        assert_eq!(Time::from_str("-0").unwrap(), RelativeSeconds(0 as f64));
+        assert_eq!(RelativeFloat::from_str("+3.14").unwrap(), Relative(3.14));
+        assert_eq!(RelativeFloat::from_str("-9.99").unwrap(), Relative(-9.99));
+        assert_eq!(RelativeFloat::from_str("-0").unwrap(), Relative(0 as f64));
     }
 
     #[test]
     fn test_parse_time_errors() {
         // TODO: can we assert on the error kind instead?
-        assert!(Time::from_str("")
+        assert!(RelativeFloat::from_str("")
             .err()
             .unwrap()
             .to_string()
             .contains("empty"));
-        assert!(Time::from_str("A")
+        assert!(RelativeFloat::from_str("A")
             .err()
             .unwrap()
             .to_string()

@@ -1,9 +1,7 @@
-use crate::mpd::commands::Command;
-use crate::mpd::handlers::HandlerError::Unsupported;
-use crate::mpd::handlers::{HandlerError, HandlerInput, HandlerOutput, HandlerResult};
-use crate::mpris::client::Player;
-use crate::mpris::watcher::MprisWatcher;
-use crate::mpris::MEDIAPLAYER2_PATH;
+use crate::handlers::mpris::client::Player;
+use crate::handlers::mpris::watcher::MprisWatcher;
+use crate::handlers::mpris::MEDIAPLAYER2_PATH;
+use crate::mpd_protocol::*;
 use dbus::nonblock::stdintf::org_freedesktop_dbus::Peer;
 use dbus::nonblock::{Proxy, SyncConnection};
 use dbus_tokio::connection;
@@ -97,7 +95,7 @@ impl MprisHandler {
 
             Command::Next => self.proxy.next(),
             Command::Previous => self.proxy.previous(),
-            _ => return Err(Unsupported),
+            _ => return Err(HandlerError::Unsupported),
         }
         .and_then(|_| Ok(HandlerOutput::Ok))
         .await

@@ -1,7 +1,6 @@
-use mpdify::aspotify::handler::SpotifyHandler;
-use mpdify::mpd::listener::MpdListener;
-use mpdify::mpris::handler::MprisHandler;
-use mpdify::mpris::OFFICIAL_SPOTIFY_DEST;
+use mpdify::handlers::aspotify::SpotifyHandler;
+use mpdify::handlers::mpris::{MprisHandler, OFFICIAL_SPOTIFY_DEST};
+use mpdify::listeners::mpd::MpdListener;
 
 #[tokio::main]
 pub async fn main() -> () {

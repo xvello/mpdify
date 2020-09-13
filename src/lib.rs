@@ -1,3 +1,3 @@
-pub mod aspotify;
-pub mod mpd;
-pub mod mpris;
+pub mod handlers;
+pub mod listeners;
+pub mod mpd_protocol;

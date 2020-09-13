@@ -1,88 +1,36 @@
-use crate::mpd::commands::Command;
-use crate::mpd::handlers::{HandlerError, HandlerInput, HandlerOutput, HandlerResult};
-use crate::mpd::inputtypes::InputError;
-use log::{debug, error, info, warn};
-use std::fmt::Debug;
-use std::str::{FromStr, Utf8Error};
-use thiserror::Error;
+use crate::listeners::mpd::types::{Handlers, ListenerError};
+use crate::mpd_protocol::*;
+use log::{debug, info, warn};
+use std::str::FromStr;
 use tokio::io::{BufReader, Lines};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
-use tokio::net::TcpListener;
+use tokio::net::TcpStream;
 use tokio::prelude::*;
-use tokio::sync::mpsc::{Receiver, Sender};
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::oneshot;
 
-#[derive(Error, Debug)]
-enum ListenerError {
-    // Unrecoverable errors that should close the connection
-    #[error(transparent)]
-    IO(#[from] std::io::Error),
-    #[error(transparent)]
-    UTF(#[from] Utf8Error),
+pub static MPD_HELLO_STRING: &[u8] = b"OK MPD 0.21.25\n";
 
-    // Input error that will trigger an ACK but keep the connection open
-    #[error(transparent)]
-    InputError(#[from] InputError),
-    #[error(transparent)]
-    HandlerError(#[from] HandlerError),
-}
-
-type Handlers = Vec<Sender<HandlerInput>>;
-
-pub struct MpdListener {
-    tcp_listener: TcpListener,
-    command_handlers: Handlers,
-}
-
-impl MpdListener {
-    pub async fn new(address: String, mut handlers: Handlers) -> Self {
-        // Run basic fallback handler
-        let (tx, rx) = mpsc::channel(8);
-        handlers.push(tx);
-        tokio::spawn(async move {
-            debug!["starting"];
-            BasicCommandHandler::run(rx).await;
-        });
-
-        MpdListener {
-            tcp_listener: TcpListener::bind(address).await.unwrap(),
-            command_handlers: handlers,
-        }
-    }
-
-    pub fn get_address(&self) -> std::io::Result<String> {
-        Ok(self.tcp_listener.local_addr()?.to_string())
-    }
-
-    pub async fn run(&mut self) {
-        loop {
-            let (socket, _) = self.tcp_listener.accept().await.unwrap();
-            let (read, write) = socket.into_split();
-            let read_lines = BufReader::new(read).lines();
-            let copied_handlers = self.command_handlers.to_owned();
-            tokio::spawn(async move {
-                Connection {
-                    command_handlers: copied_handlers,
-                    read_lines,
-                    write,
-                }
-                .run()
-                .await;
-            });
-        }
-    }
-}
-
-struct Connection {
+/// Handles one individual connections and its command flow,
+/// run in its own tokio task spawned by MpdListener
+pub struct Connection {
     command_handlers: Handlers,
     read_lines: Lines<BufReader<OwnedReadHalf>>,
     write: OwnedWriteHalf,
 }
 
-pub static MPD_HELLO_STRING: &[u8] = b"OK MPD 0.21.25\n";
-
 impl Connection {
-    async fn run(&mut self) {
+    pub fn new(socket: TcpStream, handlers: Handlers) -> Self {
+        let (read, write) = socket.into_split();
+        let read_lines = BufReader::new(read).lines();
+
+        Connection {
+            command_handlers: handlers,
+            read_lines,
+            write,
+        }
+    }
+
+    pub async fn run(&mut self) {
         debug!("New connection, saying hello");
         if let Err(err) = self.write.write(MPD_HELLO_STRING).await {
             warn!("Unrecoverable error, closing connection: {}", err);
@@ -177,28 +125,5 @@ impl Connection {
         }
         // All handlers returned Unsupported
         Err(HandlerError::Unsupported)
-    }
-}
-
-/// Handles the ping and close commands
-pub struct BasicCommandHandler {}
-
-impl BasicCommandHandler {
-    async fn run(mut commands: Receiver<HandlerInput>) {
-        debug!["BasicCommandHandler entered loop"];
-        while let Some(input) = commands.recv().await {
-            let resp = match input.command {
-                Command::Ping => Ok(HandlerOutput::Ok),
-                Command::Close => Ok(HandlerOutput::Close),
-                _ => Err(HandlerError::Unsupported),
-            };
-            match input.resp.send(resp) {
-                Ok(_) => {}
-                Err(err) => {
-                    warn!["Cannot send response: {:?}", err];
-                }
-            }
-        }
-        debug!["BasicCommandHandler exited loop"];
     }
 }
