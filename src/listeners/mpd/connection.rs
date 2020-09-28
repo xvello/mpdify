@@ -1,4 +1,5 @@
 use crate::listeners::mpd::types::{Handlers, ListenerError};
+use crate::mpd_protocol::Command::CommandListStart;
 use crate::mpd_protocol::*;
 use log::{debug, info, warn};
 use std::str::FromStr;
@@ -9,6 +10,12 @@ use tokio::prelude::*;
 use tokio::sync::oneshot;
 
 pub static MPD_HELLO_STRING: &[u8] = b"OK MPD 0.21.25\n";
+
+enum OkOutput {
+    Ok,
+    ListOk,
+    None,
+}
 
 /// Handles one individual connections and its command flow,
 /// run in its own tokio task spawned by MpdListener
@@ -38,74 +45,91 @@ impl Connection {
         }
 
         loop {
-            match self.one().await {
-                Ok(closed) => {
-                    if closed {
-                        break;
-                    }
+            let ok = match self.read_command().await {
+                Err(ListenerError::ConnectionClosed) => break,
+                Err(err) => self.output_error(err).await,
+                Ok(command) => {
+                    let result = self.exec_command(command).await;
+                    self.output_result(result, OkOutput::Ok).await
+                }
+            };
+            match ok {
+                Err(ListenerError::ConnectionClosed) => {
+                    break;
                 }
                 Err(err) => {
                     warn!("Unrecoverable error, closing connection: {}", err);
                     break;
                 }
+                Ok(()) => {}
             }
         }
     }
 
-    async fn one(&mut self) -> Result<bool, ListenerError> {
+    async fn read_command(&mut self) -> Result<Command, ListenerError> {
+        let command = self.read_one_command().await?;
+
+        match command {
+            Command::CommandListStart(mut list) => loop {
+                let nested = self.read_one_command().await?;
+                match nested {
+                    Command::CommandListStart(_) => {
+                        return Err(ListenerError::InputError(InputError::InvalidSyntax(
+                            "cannot nest lists".to_string(),
+                        )));
+                    }
+                    Command::CommandListEnd => return Ok(CommandListStart(list)),
+                    _ => list.push(nested),
+                }
+            },
+            _ => Ok(command),
+        }
+    }
+
+    async fn read_one_command(&mut self) -> Result<Command, ListenerError> {
         let line = self.read_lines.next_line().await?;
         if line.is_none() {
             debug!("Client closed the connection");
-            return Ok(true);
+            return Err(ListenerError::ConnectionClosed);
         }
-
-        let command_string = line.as_deref().unwrap();
-
-        // FIXME: stop skipping command lists
-        if command_string.starts_with("command_list_") {
-            debug!["Ignoring command {}", command_string];
-            return Ok(false);
-        }
-
-        let result = match Command::from_str(command_string) {
-            Err(err) => Err(ListenerError::InputError(err)),
-            Ok(command) => match self.exec_command(command).await {
-                Err(err) => Err(ListenerError::HandlerError(err)),
-                Ok(result) => Ok(result),
-            },
-        };
-
-        match result {
-            Ok(HandlerOutput::Close) => {
-                debug!("Closing connection due to client command");
-                Ok(true)
-            }
-            Ok(HandlerOutput::Ok) => {
-                self.write.write(b"OK\n").await?;
-                Ok(false)
-            }
-            Ok(HandlerOutput::Data(data)) => {
-                for (key, value) in data {
-                    self.write
-                        .write(format!["{}: {}\n", key, value].as_bytes())
-                        .await?;
-                }
-                self.write.write(b"OK\n").await?;
-                Ok(false)
-            }
-            Err(err) => {
-                info!("Cannot handle command: {:?}", err);
-                self.write
-                    .write(format!["ACK {}\n", err].as_bytes())
-                    .await?;
-                Ok(false)
+        match line.as_deref() {
+            None => Err(ListenerError::ConnectionClosed),
+            Some(line) => {
+                debug!("Read command {:?}", line);
+                Command::from_str(line).map_err(ListenerError::InputError)
             }
         }
     }
 
-    // Tries to executes a command by iterating over the registered handlers.
-    // If a handler returns Unsupported, the next one is tried until no more are available.
+    /// Wrapper around exec_one_command to handle command lists
     async fn exec_command(&mut self, command: Command) -> HandlerResult {
+        match command {
+            // Iterate over command lists
+            CommandListStart(list) => {
+                for nested in list.get_commands() {
+                    match self.exec_one_command(nested).await {
+                        Ok(output) => {
+                            let ok = if list.is_verbose() {
+                                self.output_result(Ok(output), OkOutput::ListOk).await
+                            } else {
+                                self.output_result(Ok(output), OkOutput::None).await
+                            };
+                            if let Err(err) = ok {
+                                warn!("Cannot print results: {:?}", err);
+                            }
+                        }
+                        Err(err) => return Err(err),
+                    }
+                }
+                Ok(HandlerOutput::Ok)
+            }
+            // Pass single commands
+            _ => self.exec_one_command(command).await,
+        }
+    }
+    /// Tries to executes a command by iterating over the registered handlers.
+    /// If a handler returns Unsupported, the next one is tried until no more are available.
+    async fn exec_one_command(&mut self, command: Command) -> HandlerResult {
         for handler in self.command_handlers.iter_mut() {
             let (tx, rx) = oneshot::channel();
             handler
@@ -124,6 +148,57 @@ impl Connection {
             }
         }
         // All handlers returned Unsupported
+        debug!("No handler available to handle {:?}", command);
         Err(HandlerError::Unsupported)
+    }
+
+    /// Tries to executes a command by iterating over the registered handlers.
+    /// If a handler returns Unsupported, the next one is tried until no more are available.
+    async fn output_result(
+        &mut self,
+        result: HandlerResult,
+        ok_output: OkOutput,
+    ) -> Result<(), ListenerError> {
+        // Unpack handler output by handling error case early
+        let output = match result {
+            Ok(output) => output,
+            Err(err) => return self.output_error(ListenerError::HandlerError(err)).await,
+        };
+
+        match output {
+            HandlerOutput::Close => {
+                debug!("Closing connection due to client command");
+                return Err(ListenerError::ConnectionClosed);
+            }
+            HandlerOutput::Ok => {}
+            HandlerOutput::Data(data) => {
+                for (key, value) in data {
+                    self.write
+                        .write(format!["{}: {}\n", key, value].as_bytes())
+                        .await?;
+                }
+            }
+        }
+
+        match ok_output {
+            OkOutput::None => {}
+            OkOutput::Ok => {
+                self.write.write(b"OK\n").await?;
+            }
+            OkOutput::ListOk => {
+                self.write.write(b"list_OK\n").await?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Tries to executes a command by iterating over the registered handlers.
+    /// If a handler returns Unsupported, the next one is tried until no more are available.
+    async fn output_error(&mut self, err: ListenerError) -> Result<(), ListenerError> {
+        info!("Cannot handle command: {:?}", err);
+        self.write
+            .write(format!["ACK {}\n", err].as_bytes())
+            .await?;
+        Ok(())
     }
 }

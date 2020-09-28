@@ -2,6 +2,7 @@ use std::str::FromStr;
 use thiserror::Error;
 
 use crate::mpd_protocol::types::RelativeFloat::{Absolute, Relative};
+use crate::mpd_protocol::Command;
 
 /// Errors caused by invalid client input
 #[derive(Error, Debug, PartialEq)]
@@ -42,6 +43,34 @@ impl FromStr for RelativeFloat {
     }
 }
 
+/// Holds several commands to be executed together
+#[derive(Debug, PartialEq, Clone)]
+pub struct CommandList {
+    commands: Vec<Command>,
+    verbose: bool,
+}
+
+impl CommandList {
+    pub fn start(verbose: bool) -> Command {
+        Command::CommandListStart(Self {
+            commands: vec![],
+            verbose,
+        })
+    }
+
+    pub fn push(&mut self, command: Command) {
+        self.commands.push(command)
+    }
+
+    pub fn get_commands(&self) -> Vec<Command> {
+        self.commands.clone()
+    }
+
+    pub fn is_verbose(&self) -> bool {
+        self.verbose
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -73,5 +102,24 @@ mod tests {
             .unwrap()
             .to_string()
             .contains("invalid"));
+    }
+
+    #[test]
+    fn test_command_list() {
+        let command = CommandList::start(true);
+        match command {
+            Command::CommandListStart(mut list) => {
+                assert_eq!(list.verbose, true);
+                list.push(Command::Ping);
+                list.push(Command::Pause(None));
+
+                assert_eq!(
+                    vec![Command::Ping, Command::Pause(None)],
+                    list.get_commands()
+                );
+                assert!(list.is_verbose());
+            }
+            _ => panic!("Should be a command list start command"),
+        }
     }
 }

@@ -7,6 +7,7 @@ use crate::mpd_protocol::types::InputError::{
     InvalidArgument, MissingArgument, MissingCommand, UnknownCommand,
 };
 use crate::mpd_protocol::types::{InputError, RelativeFloat};
+use crate::mpd_protocol::CommandList;
 use std::borrow::Borrow;
 
 // From https://www.musicpd.org/doc/html/protcurrentsongocol.html
@@ -38,6 +39,10 @@ pub enum Command {
     // Connection settings
     Ping,
     Close,
+
+    // Command list
+    CommandListStart(CommandList),
+    CommandListEnd,
 
     // Custom extension to support oauth2 authentication
     SpotifyAuth(Option<String>),
@@ -79,6 +84,11 @@ impl FromStr for Command {
                 // Connection settings
                 "ping" => Ok(Command::Ping),
                 "close" => Ok(Command::Close),
+
+                // Command list
+                "command_list_begin" => Ok(CommandList::start(false)),
+                "command_list_ok_begin" => Ok(CommandList::start(true)),
+                "command_list_end" => Ok(Command::CommandListEnd),
 
                 // Custom extension to support oauth2 authentication
                 "auth" => parse_opt("url".to_string(), tokens.next()).map(SpotifyAuth),

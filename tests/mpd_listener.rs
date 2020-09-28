@@ -8,6 +8,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::time::{timeout, Duration};
 
 #[tokio::test]
 async fn it_handles_two_connections() {
@@ -68,6 +69,36 @@ async fn it_calls_custom_handler() {
     assert_eq!("OK\n", client.read_bytes().await);
     client.send_command("close").await;
     assert!(client.read_bytes().await.is_empty());
+}
+
+#[tokio::test]
+async fn it_supports_command_lists() {
+    init_logger();
+
+    // Run custom handler
+    let (mut handler, pause_tx, _) = CustomHandler::new();
+    tokio::spawn(async move { handler.run().await });
+
+    // Run listener
+    let mut listener = MpdListener::new("127.0.0.1:0".to_string(), vec![pause_tx]).await;
+    let address = listener.get_address().expect("Cannot get server address");
+    debug!("Listening on random port {}", address);
+    tokio::spawn(async move { listener.run().await });
+
+    let mut client = Client::new(address.clone()).await;
+    let status = "one: 1\ntwo: 2\n";
+
+    // We only get a single OK by default
+    client.send_commands(vec!["status", "status"], false).await;
+    client
+        .assert_response(format!["{}{}OK\n", status, status])
+        .await;
+
+    // We expect list_OK between each answer
+    client.send_commands(vec!["status", "status"], true).await;
+    client
+        .assert_response(format!["{}list_OK\n{}list_OK\nOK\n", status, status])
+        .await;
 }
 
 fn init_logger() {
@@ -133,12 +164,15 @@ impl Client {
     }
 
     async fn read_bytes(&mut self) -> String {
-        let mut read_buffer = [0; 32];
-        let n = self
-            .stream
-            .read(&mut read_buffer)
+        let mut read_buffer = [0; 1024];
+        let read_or_timeout = timeout(
+            Duration::from_millis(100),
+            self.stream.read(&mut read_buffer),
+        );
+        let n = read_or_timeout
             .await
-            .expect("Cannot read");
+            .expect("Read timeout")
+            .expect("Read error");
         let result = std::str::from_utf8(&read_buffer[0..n]).expect("Invalid UTF8");
         debug!("Read back result {:?}", result);
         result.to_string()
@@ -150,5 +184,31 @@ impl Client {
             .write(format!["{}\n", command].as_bytes())
             .await
             .expect("Error sending command");
+    }
+
+    async fn send_commands(&mut self, mut commands: Vec<&str>, verbose: bool) {
+        debug!("Sending commands {:?}", commands);
+
+        if verbose {
+            commands.insert(0, "command_list_ok_begin");
+        } else {
+            commands.insert(0, "command_list_begin");
+        }
+        commands.push("command_list_end");
+
+        for command in commands {
+            self.stream
+                .write(format!["{}\n", command].as_bytes())
+                .await
+                .expect("Error sending command");
+        }
+    }
+
+    async fn assert_response(&mut self, expected: String) {
+        let mut response = "".to_string();
+        while expected.len() > response.len() {
+            response.push_str(self.read_bytes().await.as_str());
+        }
+        assert_eq![response, expected];
     }
 }
