@@ -27,12 +27,12 @@ async fn it_handles_two_connections() {
 
     for client in clients.iter_mut().rev() {
         client.send_command("ping").await;
-        assert_eq!("OK\n", client.read_bytes().await);
+        client.assert_response("OK\n".to_string()).await;
     }
 
     for client in clients.iter_mut() {
         client.send_command("close").await;
-        assert!(client.read_bytes().await.is_empty());
+        client.assert_no_response().await;
     }
 }
 
@@ -54,21 +54,23 @@ async fn it_calls_custom_handler() {
 
     // Pause command is sent to our handler
     client.send_command("pause 1").await;
-    assert_eq!("OK\n", client.read_bytes().await);
-    assert_eq!(true, is_paused.load(Acquire));
+    client.assert_response("OK\n".to_string()).await;
+    assert!(is_paused.load(Acquire));
     client.send_command("pause \"0\"").await;
-    assert_eq!("OK\n", client.read_bytes().await);
-    assert_eq!(false, is_paused.load(Acquire));
+    client.assert_response("OK\n".to_string()).await;
+    assert!(!is_paused.load(Acquire));
 
     // Status command is sent to our handler
     client.send_command("status").await;
-    assert_eq!("one: 1\ntwo: 2\nOK\n", client.read_bytes().await);
+    client
+        .assert_response("one: 1\ntwo: 2\nOK\n".to_string())
+        .await;
 
     // Ping is still handled by the default handler
     client.send_command("ping").await;
-    assert_eq!("OK\n", client.read_bytes().await);
+    client.assert_response("OK\n".to_string()).await;
     client.send_command("close").await;
-    assert!(client.read_bytes().await.is_empty());
+    client.assert_no_response().await;
 }
 
 #[tokio::test]
@@ -166,7 +168,7 @@ impl Client {
     async fn read_bytes(&mut self) -> String {
         let mut read_buffer = [0; 1024];
         let read_or_timeout = timeout(
-            Duration::from_millis(100),
+            Duration::from_millis(250),
             self.stream.read(&mut read_buffer),
         );
         let n = read_or_timeout
@@ -204,11 +206,31 @@ impl Client {
         }
     }
 
+    /// Check that no packet is waiting to be read
+    async fn assert_no_response(&mut self) {
+        let mut read_buffer = [0; 32];
+        let read_or_timeout = timeout(
+            Duration::from_millis(100),
+            self.stream.read(&mut read_buffer),
+        );
+        match read_or_timeout.await {
+            Err(_) => {} // Expected behaviour if waiting for next command
+            Ok(Err(err)) => panic!("Read error {:?}", err),
+            Ok(Ok(0)) => {} // Expected behaviour on close
+            Ok(Ok(remaining)) => panic!("Found {} extra bytes", remaining),
+        }
+    }
+
+    /// Reads the response and compare it to the expected one
     async fn assert_response(&mut self, expected: String) {
+        // Wait for complete response and check equality
         let mut response = "".to_string();
         while expected.len() > response.len() {
             response.push_str(self.read_bytes().await.as_str());
         }
         assert_eq![response, expected];
+
+        // Confirm there is nothing else on the wire
+        self.assert_no_response().await;
     }
 }
