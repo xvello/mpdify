@@ -1,8 +1,8 @@
+use crate::listeners::mpd::input::read_command;
 use crate::listeners::mpd::types::{Handlers, ListenerError};
 use crate::mpd_protocol::Command::CommandListStart;
 use crate::mpd_protocol::*;
 use log::{debug, info, warn};
-use std::str::FromStr;
 use tokio::io::{BufReader, Lines};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::TcpStream;
@@ -45,7 +45,7 @@ impl Connection {
         }
 
         loop {
-            let ok = match self.read_command().await {
+            let ok = match read_command(&mut self.read_lines).await {
                 Err(ListenerError::ConnectionClosed) => break,
                 Err(err) => self.output_error(err).await,
                 Ok(command) => {
@@ -62,41 +62,6 @@ impl Connection {
                     break;
                 }
                 Ok(()) => {}
-            }
-        }
-    }
-
-    async fn read_command(&mut self) -> Result<Command, ListenerError> {
-        let command = self.read_one_command().await?;
-
-        match command {
-            Command::CommandListStart(mut list) => loop {
-                let nested = self.read_one_command().await?;
-                match nested {
-                    Command::CommandListStart(_) => {
-                        return Err(ListenerError::InputError(InputError::InvalidSyntax(
-                            "cannot nest lists".to_string(),
-                        )));
-                    }
-                    Command::CommandListEnd => return Ok(CommandListStart(list)),
-                    _ => list.push(nested),
-                }
-            },
-            _ => Ok(command),
-        }
-    }
-
-    async fn read_one_command(&mut self) -> Result<Command, ListenerError> {
-        let line = self.read_lines.next_line().await?;
-        if line.is_none() {
-            debug!("Client closed the connection");
-            return Err(ListenerError::ConnectionClosed);
-        }
-        match line.as_deref() {
-            None => Err(ListenerError::ConnectionClosed),
-            Some(line) => {
-                debug!("Read command {:?}", line);
-                Command::from_str(line).map_err(ListenerError::InputError)
             }
         }
     }

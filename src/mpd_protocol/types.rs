@@ -17,6 +17,8 @@ pub enum InputError {
     MissingArgument(String),
     #[error("invalid value for argument {0}: {1}")]
     InvalidArgument(String, String),
+    #[error("cannot nest command lists")]
+    NestedLists,
 }
 
 /// Parses a float, optionally prefixed by + or -
@@ -56,6 +58,10 @@ impl CommandList {
             commands: vec![],
             verbose,
         })
+    }
+
+    pub fn build(verbose: bool, commands: Vec<Command>) -> Command {
+        Command::CommandListStart(Self { commands, verbose })
     }
 
     pub fn push(&mut self, command: Command) {
