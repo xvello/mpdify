@@ -729,6 +729,7 @@ name = "mpdify"
 version = "0.1.0"
 dependencies = [
  "aspotify",
+ "chrono",
  "dbus",
  "dbus-tokio",
  "erased-serde",

@@ -1,4 +1,4 @@
-use crate::handlers::aspotify::status::build_status_result;
+use crate::handlers::aspotify::status::{build_song_result, build_status_result};
 use crate::mpd_protocol::*;
 use aspotify::{Client, ClientCredentials, Scope};
 use log::{debug, warn};
@@ -55,6 +55,7 @@ impl SpotifyHandler {
             },
             // Playback status
             Command::Status => self.execute_status().await,
+            Command::CurrentSong => self.execute_currentsong().await,
             Command::SetVolume(value) => {
                 self.ensure_authenticated().await?;
                 self.client.player().set_volume(value as i32, None).await?;
@@ -104,6 +105,11 @@ impl SpotifyHandler {
     async fn execute_status(&mut self) -> HandlerResult {
         self.ensure_authenticated().await?;
         build_status_result(self.client.player().get_playback(None).await?.data)
+    }
+
+    async fn execute_currentsong(&mut self) -> HandlerResult {
+        self.ensure_authenticated().await?;
+        build_song_result(self.client.player().get_playing_track(None).await?.data)
     }
 
     async fn execute_auth_callback(&mut self, url: String) -> HandlerResult {

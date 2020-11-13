@@ -33,6 +33,24 @@ pub struct StatusResponse {
     pub duration: Option<f64>,
 }
 
+/// Response for the currentsong command
+#[derive(Debug, PartialEq, Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct SongResponse {
+    #[serde(rename = "file")]
+    pub file: String,
+    pub artist: String,
+    pub album: String,
+    pub title: String,
+    pub date: Option<u32>,
+    #[serde(rename = "duration")]
+    pub duration: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub track: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disc: Option<usize>,
+}
+
 /// Holder for HandlerOutput::Serialize
 pub struct OutputData {
     pub data: Vec<Box<dyn erased_serde::Serialize + Send>>,
