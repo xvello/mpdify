@@ -124,7 +124,7 @@ impl SpotifyHandler {
                 "pause".to_string()
             },
         ));
-        Ok(HandlerOutput::Data(output))
+        Ok(HandlerOutput::Fields(output))
     }
 
     async fn execute_auth_callback(&mut self, url: String) -> HandlerResult {

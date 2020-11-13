@@ -3,10 +3,10 @@ use std::str::FromStr;
 use crate::mpd_protocol::commands::Command::{
     ChangeVolume, Pause, Play, PlayId, SeekCur, SetVolume, SpotifyAuth,
 };
-use crate::mpd_protocol::types::InputError::{
+use crate::mpd_protocol::input::InputError::{
     InvalidArgument, MissingArgument, MissingCommand, UnknownCommand,
 };
-use crate::mpd_protocol::types::{InputError, RelativeFloat};
+use crate::mpd_protocol::input::{InputError, RelativeFloat};
 use crate::mpd_protocol::CommandList;
 use std::borrow::Borrow;
 
@@ -157,7 +157,7 @@ fn tokenize_command(input: &str) -> Vec<String> {
 mod tests {
     use super::*;
     use crate::mpd_protocol::commands::Command::Ping;
-    use crate::mpd_protocol::types::RelativeFloat::{Absolute, Relative};
+    use crate::mpd_protocol::input::RelativeFloat::{Absolute, Relative};
 
     #[test]
     fn test_no_command() {

@@ -7,6 +7,7 @@ use tokio::io::{BufReader, Lines};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::TcpStream;
 use tokio::prelude::*;
+use tokio::stream::{self, StreamExt};
 use tokio::sync::oneshot;
 
 pub static MPD_HELLO_STRING: &[u8] = b"OK MPD 0.21.25\n";
@@ -137,6 +138,14 @@ impl Connection {
             }
             HandlerOutput::Ok => {}
             HandlerOutput::Data(data) => {
+                let mut items = stream::iter(data.data);
+                while let Some(item) = items.next().await {
+                    let bytes = to_vec(item.as_ref())?;
+                    self.write.write(bytes.as_ref()).await?;
+                    self.write.write(b"\n").await?;
+                }
+            }
+            HandlerOutput::Fields(data) => {
                 for (key, value) in data {
                     self.write
                         .write(format!["{}: {}\n", key, value].as_bytes())

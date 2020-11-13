@@ -1,6 +1,8 @@
 use log::{debug, warn};
 use mpdify::listeners::mpd::MpdListener;
-use mpdify::mpd_protocol::{Command, HandlerError, HandlerInput, HandlerOutput};
+use mpdify::mpd_protocol::{
+    Command, HandlerError, HandlerInput, HandlerOutput, PlaybackStatus, StatusResponse,
+};
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering::{Acquire, Release};
 use std::sync::Arc;
@@ -60,10 +62,16 @@ async fn it_calls_custom_handler() {
     client.assert_response("OK\n".to_string()).await;
     assert!(!is_paused.load(Acquire));
 
-    // Status command is sent to our handler
-    client.send_command("status").await;
+    // stats command is sent to our handler
+    client.send_command("stats").await;
     client
         .assert_response("one: 1\ntwo: 2\nOK\n".to_string())
+        .await;
+
+    // status command is sent to our handler
+    client.send_command("status").await;
+    client
+        .assert_response("volume: 20\nstate: pause\nOK\n".to_string())
         .await;
 
     // Ping is still handled by the default handler
@@ -88,18 +96,18 @@ async fn it_supports_command_lists() {
     tokio::spawn(async move { listener.run().await });
 
     let mut client = Client::new(address.clone()).await;
-    let status = "one: 1\ntwo: 2\n";
+    let stats = "one: 1\ntwo: 2\n";
 
     // We only get a single OK by default
-    client.send_commands(vec!["status", "status"], false).await;
+    client.send_commands(vec!["stats", "stats"], false).await;
     client
-        .assert_response(format!["{}{}OK\n", status, status])
+        .assert_response(format!["{}{}OK\n", stats, stats])
         .await;
 
     // We expect list_OK between each answer
-    client.send_commands(vec!["status", "status"], true).await;
+    client.send_commands(vec!["stats", "stats"], true).await;
     client
-        .assert_response(format!["{}list_OK\n{}list_OK\nOK\n", status, status])
+        .assert_response(format!["{}list_OK\n{}list_OK\nOK\n", stats, stats])
         .await;
 }
 
@@ -131,7 +139,14 @@ impl CustomHandler {
                 }
                 Command::Status => {
                     debug!["Called custom status handler"];
-                    Ok(HandlerOutput::Data(vec![
+                    Ok(HandlerOutput::from(StatusResponse {
+                        volume: Some(20),
+                        state: PlaybackStatus::Pause,
+                    }))
+                }
+                Command::Stats => {
+                    debug!["Called custom stats handler"];
+                    Ok(HandlerOutput::Fields(vec![
                         ("one".to_string(), "1".to_string()),
                         ("two".to_string(), "2".to_string()),
                     ]))

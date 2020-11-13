@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use thiserror::Error;
 
-use crate::mpd_protocol::types::RelativeFloat::{Absolute, Relative};
+use crate::mpd_protocol::input::RelativeFloat::{Absolute, Relative};
 use crate::mpd_protocol::Command;
 
 /// Errors caused by invalid client input
