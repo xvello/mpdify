@@ -1,3 +1,4 @@
+use crate::handlers::aspotify::status::build_status_result;
 use crate::mpd_protocol::*;
 use aspotify::{Client, ClientCredentials, Scope};
 use log::{debug, warn};
@@ -102,29 +103,7 @@ impl SpotifyHandler {
 
     async fn execute_status(&mut self) -> HandlerResult {
         self.ensure_authenticated().await?;
-
-        let status = self
-            .client
-            .player()
-            .get_playback(None)
-            .await
-            .unwrap()
-            .data
-            .unwrap();
-
-        let mut output: Vec<(String, String)> = vec![];
-        if let Some(volume) = status.device.volume_percent {
-            output.push(("volume".to_string(), volume.to_string()));
-        }
-        output.push((
-            "state".to_string(),
-            if status.currently_playing.is_playing {
-                "play".to_string()
-            } else {
-                "pause".to_string()
-            },
-        ));
-        Ok(HandlerOutput::Fields(output))
+        build_status_result(self.client.player().get_playback(None).await?.data)
     }
 
     async fn execute_auth_callback(&mut self, url: String) -> HandlerResult {

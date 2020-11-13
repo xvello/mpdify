@@ -71,7 +71,9 @@ async fn it_calls_custom_handler() {
     // status command is sent to our handler
     client.send_command("status").await;
     client
-        .assert_response("volume: 20\nstate: pause\nOK\n".to_string())
+        .assert_response(
+            "volume: 20\nstate: pause\nrandom: 1\nrepeat: 0\nsingle: 0\nOK\n".to_string(),
+        )
         .await;
 
     // Ping is still handled by the default handler
@@ -142,6 +144,12 @@ impl CustomHandler {
                     Ok(HandlerOutput::from(StatusResponse {
                         volume: Some(20),
                         state: PlaybackStatus::Pause,
+                        random: true,
+                        repeat: false,
+                        single: false,
+                        time: None,
+                        elapsed: None,
+                        duration: None,
                     }))
                 }
                 Command::Stats => {

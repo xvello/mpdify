@@ -2,6 +2,8 @@ use serde::export::Formatter;
 use serde::Serialize;
 use std::fmt;
 
+use crate::mpd_protocol::bool_to_int;
+
 /// Playback status for StatusResponse
 #[derive(Debug, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -17,6 +19,18 @@ pub struct StatusResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub volume: Option<u32>,
     pub state: PlaybackStatus,
+    #[serde(serialize_with = "bool_to_int")]
+    pub random: bool,
+    #[serde(serialize_with = "bool_to_int")]
+    pub repeat: bool,
+    #[serde(serialize_with = "bool_to_int")]
+    pub single: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub time: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub elapsed: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration: Option<f64>,
 }
 
 /// Holder for HandlerOutput::Serialize
