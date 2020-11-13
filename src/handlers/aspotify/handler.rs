@@ -1,14 +1,17 @@
+use crate::handlers::aspotify::context::ContextCache;
 use crate::handlers::aspotify::status::{build_song_result, build_status_result};
 use crate::mpd_protocol::*;
 use aspotify::{Client, ClientCredentials, Scope};
 use log::{debug, warn};
 use std::fs;
+use std::sync::Arc;
 use tokio::sync::mpsc;
 
 pub struct SpotifyHandler {
     command_rx: mpsc::Receiver<HandlerInput>,
-    client: Client,
+    client: Arc<Client>,
     auth_state: Option<String>,
+    context_cache: ContextCache,
 }
 
 static REFRESH_TOKEN_FILE: &str = ".refresh_token";
@@ -16,7 +19,8 @@ static REFRESH_TOKEN_FILE: &str = ".refresh_token";
 impl SpotifyHandler {
     pub async fn new() -> (Self, mpsc::Sender<HandlerInput>) {
         let (command_tx, command_rx) = mpsc::channel(16);
-        let client = Client::new(ClientCredentials::from_env().unwrap());
+        let client = Arc::new(Client::new(ClientCredentials::from_env().unwrap()));
+        let context_cache = ContextCache::new(client.clone());
 
         // Try to read refresh token from file
         if let Ok(token) = fs::read_to_string(REFRESH_TOKEN_FILE) {
@@ -29,6 +33,7 @@ impl SpotifyHandler {
                 command_rx,
                 client,
                 auth_state: None,
+                context_cache,
             },
             command_tx,
         )
@@ -104,12 +109,22 @@ impl SpotifyHandler {
 
     async fn execute_status(&mut self) -> HandlerResult {
         self.ensure_authenticated().await?;
-        build_status_result(self.client.player().get_playback(None).await?.data)
+        let playback = self.client.player().get_playback(None).await?.data;
+        let context_key = playback
+            .as_ref()
+            .map(|p| p.currently_playing.context.as_ref())
+            .flatten();
+        let context = self.context_cache.get(context_key).await?;
+        debug!("Context {:?} from key {:?}", context, context_key);
+        build_status_result(playback, context)
     }
 
     async fn execute_currentsong(&mut self) -> HandlerResult {
         self.ensure_authenticated().await?;
-        build_song_result(self.client.player().get_playing_track(None).await?.data)
+        let playing = self.client.player().get_playing_track(None).await?.data;
+        let context_key = playing.as_ref().map(|p| p.context.as_ref()).flatten();
+        let context = self.context_cache.get(context_key).await?;
+        build_song_result(playing, context)
     }
 
     async fn execute_auth_callback(&mut self, url: String) -> HandlerResult {

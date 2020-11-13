@@ -150,6 +150,7 @@ impl CustomHandler {
                         time: None,
                         elapsed: None,
                         duration: None,
+                        playlist_info: None,
                     }))
                 }
                 Command::Stats => {

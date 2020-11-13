@@ -45,6 +45,7 @@ mod tests {
                 time: None,
                 elapsed: None,
                 duration: None,
+                playlist_info: None
             })
             .expect("Serializer error"),
             b"state: stop\nrandom: 0\nrepeat: 0\nsingle: 0".to_vec()
@@ -60,6 +61,7 @@ mod tests {
                 time: None,
                 elapsed: None,
                 duration: Some(120.6),
+                playlist_info: None
             })
             .expect("Serializer error"),
             b"volume: 20\nstate: pause\nrandom: 1\nrepeat: 0\nsingle: 0\nduration: 120.6".to_vec()

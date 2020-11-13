@@ -31,6 +31,15 @@ pub struct StatusResponse {
     pub elapsed: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration: Option<f64>,
+    #[serde(flatten, skip_serializing_if = "Option::is_none")]
+    pub playlist_info: Option<StatusPlaylistInfo>,
+}
+
+#[derive(Debug, PartialEq, Serialize)]
+pub struct StatusPlaylistInfo {
+    pub playlistlength: usize,
+    pub song: usize,
+    pub songid: usize,
 }
 
 /// Response for the currentsong command
@@ -43,6 +52,8 @@ pub struct SongResponse {
     pub album: String,
     pub title: String,
     pub date: Option<u32>,
+    pub pos: usize, // First item of playlist is 0
+    pub id: usize,  // First item of playlist is 1
     #[serde(rename = "duration")]
     pub duration: f64,
     #[serde(skip_serializing_if = "Option::is_none")]
