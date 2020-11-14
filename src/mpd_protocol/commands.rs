@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use crate::mpd_protocol::commands::Command::{
     ChangeVolume, Pause, Play, PlayId, SeekCur, SetVolume, SpotifyAuth,
 };
@@ -8,8 +6,10 @@ use crate::mpd_protocol::input::InputError::{
 };
 use crate::mpd_protocol::input::{InputError, RelativeFloat};
 use crate::mpd_protocol::Command::{PlaylistId, PlaylistInfo};
-use crate::mpd_protocol::{CommandList, PositionRange};
+use crate::mpd_protocol::{CommandList, IdleSubsystem, PositionRange};
+use log::debug;
 use std::borrow::Borrow;
+use std::str::FromStr;
 
 // From https://www.musicpd.org/doc/html/protcurrentsongocol.html
 #[derive(Debug, PartialEq, Clone)]
@@ -17,7 +17,7 @@ pub enum Command {
     // Status commands
     ClearError,
     CurrentSong,
-    Idle,
+    Idle(Vec<IdleSubsystem>),
     Status,
     Stats,
 
@@ -67,9 +67,20 @@ impl FromStr for Command {
                 // Status commands
                 "clearerror" => Ok(Command::ClearError),
                 "currentsong" => Ok(Command::CurrentSong),
-                "idle" => Ok(Command::Idle),
                 "status" => Ok(Command::Status),
                 "stats" => Ok(Command::Stats),
+
+                // Idle
+                "idle" => {
+                    let mut subsytems: Vec<IdleSubsystem> = vec![];
+                    for name in tokens {
+                        match serde_yaml::from_str(name) {
+                            Ok(subsytem) => subsytems.push(subsytem),
+                            Err(_) => debug!["Ignoring unsupported idle subsystem {}", name],
+                        }
+                    }
+                    Ok(Command::Idle(subsytems))
+                }
 
                 // Playlist info
                 "playlistinfo" => parse_opt("range".to_string(), tokens.next()).map(PlaylistInfo),
@@ -174,6 +185,7 @@ mod tests {
     use super::*;
     use crate::mpd_protocol::commands::Command::Ping;
     use crate::mpd_protocol::input::RelativeFloat::{Absolute, Relative};
+    use crate::mpd_protocol::Command::Idle;
 
     #[test]
     fn test_no_command() {
@@ -202,6 +214,15 @@ mod tests {
         assert_eq!(
             Command::from_str("pause A").err().unwrap(),
             InvalidArgument("paused".to_string(), "A".to_string())
+        );
+    }
+
+    #[test]
+    fn test_idle() {
+        assert_eq!(Command::from_str("idle").unwrap(), Idle(vec![]));
+        assert_eq!(
+            Command::from_str("idle playlist unknown mixer").unwrap(),
+            Idle(vec![IdleSubsystem::PlayQueue, IdleSubsystem::Mixer])
         );
     }
 

@@ -74,7 +74,7 @@ impl MprisHandler {
 
     async fn execute(&mut self, command: Command) -> HandlerResult {
         // Idle: wait until a PropertiesChanged signal is sent on dbus
-        if let Command::Idle = command {
+        if let Command::Idle(_) = command {
             return self
                 .idle_tx
                 .subscribe()

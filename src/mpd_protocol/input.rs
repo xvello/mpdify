@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use thiserror::Error;
 
@@ -19,6 +20,20 @@ pub enum InputError {
     InvalidArgument(String, String),
     #[error("cannot nest command lists")]
     NestedLists,
+}
+
+/// Supported subsystems for the idle command
+/// See https://www.musicpd.org/doc/html/protocol.html#querying-mpd-s-status
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum IdleSubsystem {
+    #[serde(rename = "playlist")]
+    PlayQueue,
+    #[serde(rename = "stored_playlist")]
+    Playlists,
+    Player,
+    Mixer,
+    Options,
 }
 
 /// Parses a float, optionally prefixed by + or -
