@@ -102,6 +102,13 @@ impl FromStr for Command {
                 // Custom extension to support oauth2 authentication
                 "auth" => parse_opt("url".to_string(), tokens.next()).map(SpotifyAuth),
 
+                // Client channels are unsupported, just translate to ping so clients don't complain
+                "channels" => Ok(Command::Ping),
+                "subscribe" => Ok(Command::Ping),
+                "unsubscribe" => Ok(Command::Ping),
+                "readmessages" => Ok(Command::Ping),
+                "sendmessage" => Ok(Command::Ping),
+
                 // Unknown command
                 _ => Err(UnknownCommand(command.to_string())),
             })
