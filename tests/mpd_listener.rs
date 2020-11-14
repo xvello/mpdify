@@ -1,8 +1,7 @@
 use log::{debug, warn};
 use mpdify::listeners::mpd::MpdListener;
-use mpdify::mpd_protocol::{
-    Command, HandlerError, HandlerInput, HandlerOutput, PlaybackStatus, StatusResponse,
-};
+use mpdify::mpd_protocol::{Command, HandlerError, HandlerInput, HandlerOutput, PlaybackStatus};
+use serde::Serialize;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering::{Acquire, Release};
 use std::sync::Arc;
@@ -71,9 +70,7 @@ async fn it_calls_custom_handler() {
     // status command is sent to our handler
     client.send_command("status").await;
     client
-        .assert_response(
-            "volume: 20\nstate: pause\nrandom: 1\nrepeat: 0\nsingle: 0\nOK\n".to_string(),
-        )
+        .assert_response("volume: 20\nstate: pause\nOK\n".to_string())
         .await;
 
     // Ping is still handled by the default handler
@@ -117,6 +114,13 @@ fn init_logger() {
     let _ = pretty_env_logger::try_init();
 }
 
+#[derive(Debug, PartialEq, Serialize)]
+pub struct CustomStatus {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub volume: Option<u32>,
+    pub state: PlaybackStatus,
+}
+
 struct CustomHandler {
     is_paused: Arc<AtomicBool>,
     rx: Receiver<HandlerInput>,
@@ -141,16 +145,9 @@ impl CustomHandler {
                 }
                 Command::Status => {
                     debug!["Called custom status handler"];
-                    Ok(HandlerOutput::from(StatusResponse {
+                    Ok(HandlerOutput::from(CustomStatus {
                         volume: Some(20),
                         state: PlaybackStatus::Pause,
-                        random: true,
-                        repeat: false,
-                        single: false,
-                        time: None,
-                        elapsed: None,
-                        duration: None,
-                        playlist_info: None,
                     }))
                 }
                 Command::Stats => {

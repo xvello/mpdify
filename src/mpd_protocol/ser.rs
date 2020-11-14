@@ -23,7 +23,18 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mpd_protocol::{PlaybackStatus, StatusResponse};
+    use crate::mpd_protocol::PlaybackStatus;
+    use serde::Serialize;
+
+    #[derive(Debug, PartialEq, Serialize)]
+    #[serde(rename_all = "PascalCase")]
+    pub struct CustomResponse {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub optional_int: Option<u32>,
+        pub status: PlaybackStatus,
+        #[serde(rename = "float")]
+        pub float: f64,
+    }
 
     #[test]
     fn test_string() {
@@ -36,35 +47,23 @@ mod tests {
     #[test]
     fn test_status() {
         assert_eq!(
-            to_vec(&StatusResponse {
-                volume: None,
-                state: PlaybackStatus::Stop,
-                random: false,
-                repeat: false,
-                single: false,
-                time: None,
-                elapsed: None,
-                duration: None,
-                playlist_info: None
+            to_vec(&CustomResponse {
+                optional_int: None,
+                status: PlaybackStatus::Stop,
+                float: 7.0,
             })
             .expect("Serializer error"),
-            b"state: stop\nrandom: 0\nrepeat: 0\nsingle: 0".to_vec()
+            b"Status: stop\nfloat: 7.0".to_vec()
         );
 
         assert_eq!(
-            to_vec(&StatusResponse {
-                volume: Some(20),
-                state: PlaybackStatus::Pause,
-                random: true,
-                repeat: false,
-                single: false,
-                time: None,
-                elapsed: None,
-                duration: Some(120.6),
-                playlist_info: None
+            to_vec(&CustomResponse {
+                optional_int: Some(20),
+                status: PlaybackStatus::Pause,
+                float: 6.66
             })
             .expect("Serializer error"),
-            b"volume: 20\nstate: pause\nrandom: 1\nrepeat: 0\nsingle: 0\nduration: 120.6".to_vec()
+            b"OptionalInt: 20\nStatus: pause\nfloat: 6.66".to_vec()
         );
     }
 }
