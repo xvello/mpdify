@@ -67,10 +67,10 @@ pub struct PositionRange {
 }
 
 impl PositionRange {
-    pub fn match_all() -> PositionRange {
+    pub fn one(pos: usize) -> PositionRange {
         PositionRange {
-            start: std::usize::MIN,
-            end: std::usize::MAX,
+            start: pos,
+            end: pos - 1,
         }
     }
 

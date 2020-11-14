@@ -18,6 +18,9 @@ pub struct SpotifyHandler {
     auth_status: AuthStatus,
 }
 
+// Alias for aspotify simple return value
+type AResult = Result<(), aspotify::model::Error>;
+
 impl SpotifyHandler {
     pub async fn new(idle_bus: Arc<IdleBus>) -> (Self, mpsc::Sender<HandlerInput>) {
         let (command_tx, command_rx) = mpsc::channel(16);
@@ -67,37 +70,28 @@ impl SpotifyHandler {
             Command::Pause(Some(false)) => self.exec(client.player().resume(None)).await,
             Command::Pause(Some(true)) => self.exec(client.player().pause(None)).await,
             Command::Pause(None) => self.execute_play_pause().await,
+            Command::Stop => self.exec(client.player().pause(None)).await,
 
             // Volume
             Command::GetVolume => self.execute_get_volume().await,
             Command::ChangeVolume(delta) => self.execute_change_volume(delta).await,
-            Command::SetVolume(value) => {
-                self.exec(client.player().set_volume(value as i32, None))
-                    .await
-            }
+            Command::SetVolume(v) => self.exec(client.player().set_volume(v as i32, None)).await,
 
             // Playlist info
             Command::PlaylistInfo(range) => self.execute_playlist_info(range).await,
-            Command::PlaylistId(id) => match id {
-                None => self.execute_playlist_info(None).await,
-                Some(id) => {
-                    self.execute_playlist_info(Some(PositionRange {
-                        start: id - 1,
-                        end: id,
-                    }))
+            Command::PlaylistId(None) => self.execute_playlist_info(None).await,
+            Command::PlaylistId(Some(id)) => {
+                self.execute_playlist_info(Some(PositionRange::one(id - 1)))
                     .await
-                }
-            },
+            }
 
             // Unsupported
             _ => Err(HandlerError::Unsupported),
         }
     }
 
-    async fn exec(
-        &mut self,
-        f: impl Future<Output = Result<(), aspotify::model::Error>>,
-    ) -> HandlerResult where {
+    /// Authenticates and executes a simple aspotify call (empty return value).
+    async fn exec(&mut self, f: impl Future<Output = AResult>) -> HandlerResult {
         self.auth_status.check().await?;
         f.await?;
         Ok(HandlerOutput::Ok)
@@ -105,12 +99,11 @@ impl SpotifyHandler {
 
     async fn execute_play_pause(&mut self) -> HandlerResult {
         self.auth_status.check().await?;
-        match self.client.player().get_playing_track(None).await?.data {
+        let playing = self.client.player().get_playing_track(None).await?.data;
+        match playing.map(|p| p.is_playing) {
             None => self.client.player().resume(None).await?,
-            Some(playing) => match playing.is_playing {
-                true => self.client.player().pause(None).await?,
-                false => self.client.player().resume(None).await?,
-            },
+            Some(false) => self.client.player().resume(None).await?,
+            Some(true) => self.client.player().pause(None).await?,
         }
         Ok(HandlerOutput::Ok)
     }
@@ -155,12 +148,9 @@ impl SpotifyHandler {
     }
 
     async fn execute_change_volume(&mut self, delta: i32) -> HandlerResult {
-        match self.get_volume().await? {
-            None => {}
-            Some(current) => {
-                let target = 100.min(0.max(current as i32 + delta));
-                self.client.player().set_volume(target, None).await?
-            }
+        if let Some(current) = self.get_volume().await? {
+            let target = 100.min(0.max(current as i32 + delta));
+            self.client.player().set_volume(target, None).await?
         }
         Ok(HandlerOutput::Ok)
     }
