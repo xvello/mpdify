@@ -46,11 +46,19 @@ pub fn build_playlistinfo_result(
                 }
             }
         }
+        PlayContext::Artist(_, tracks) => {
+            for (pos, track) in tracks.iter().enumerate() {
+                if include(pos) {
+                    let pos_provider = |_: &str| pos;
+                    songs.push(build_song_from_track(track, pos_provider));
+                }
+            }
+        }
+
         PlayContext::Track(track) => songs.push(build_song_from_track(track, |_| 0)),
         PlayContext::Episode(ep) => songs.push(build_song_from_episode(ep, |_| 0)),
 
-        // Fallback to a single item playlist when the context is not supported (radio, artist top tracks)
-        PlayContext::Artist(_) => return build_song_from_playing(playing, context),
+        // Fallback to a single item playlist when the context is not supported (radio)
         PlayContext::Empty => return build_song_from_playing(playing, context),
     }
 

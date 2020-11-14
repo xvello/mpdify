@@ -1,13 +1,14 @@
 use crate::mpd_protocol::IdleSubsystem;
 use crate::util::IdleBus;
-use aspotify::{model, Error, ItemType};
+use aspotify::Market::FromToken;
+use aspotify::{model, Error, ItemType, Track};
 use std::borrow::Borrow;
 use std::sync::Arc;
 
 #[derive(Debug)]
 pub enum PlayContext {
     Album(model::Album),
-    Artist(model::Artist),
+    Artist(model::Artist, Vec<Track>),
     Playlist(model::Playlist),
     Track(model::Track),
     Show(model::Show),
@@ -19,7 +20,7 @@ impl PlayContext {
     pub fn size(&self) -> usize {
         match self {
             PlayContext::Album(album) => album.tracks.total,
-            PlayContext::Artist(_) => 0, // FIXME
+            PlayContext::Artist(_, tracks) => tracks.len(),
             PlayContext::Playlist(list) => list.tracks.total,
             PlayContext::Track(_) => 1,
             PlayContext::Show(show) => show.episodes.total,
@@ -60,6 +61,13 @@ impl PlayContext {
             PlayContext::Show(show) => {
                 for (pos, item) in show.episodes.items.iter().enumerate() {
                     if item.id.eq(id) {
+                        return pos;
+                    }
+                }
+            }
+            PlayContext::Artist(_, tracks) => {
+                for (pos, track) in tracks.iter().enumerate() {
+                    if track.id.is_some() && track.id.as_ref().unwrap().eq(id) {
                         return pos;
                     }
                 }
@@ -112,7 +120,10 @@ impl ContextCache {
                 PlayContext::Album(self.client.albums().get_album(id, None).await?.data)
             }
             ItemType::Artist => {
-                PlayContext::Artist(self.client.artists().get_artist(id).await?.data)
+                let client = self.client.artists();
+                let artist = client.get_artist(id).await?.data;
+                let tracks = client.get_artist_top(id, FromToken).await?.data;
+                PlayContext::Artist(artist, tracks)
             }
             ItemType::Playlist => {
                 PlayContext::Playlist(self.client.playlists().get_playlist(id, None).await?.data)
