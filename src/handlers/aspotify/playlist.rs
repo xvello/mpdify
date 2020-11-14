@@ -1,13 +1,14 @@
 use crate::handlers::aspotify::context::PlayContext;
 use crate::handlers::aspotify::song::{
-    build_song_from_episode, build_song_from_episodesimplified, build_song_from_track,
-    build_song_from_tracksimplified,
+    build_song_from_episode, build_song_from_episodesimplified, build_song_from_playing,
+    build_song_from_track, build_song_from_tracksimplified,
 };
 use crate::mpd_protocol::{HandlerOutput, HandlerResult, OutputData, PositionRange};
-use aspotify::PlaylistItemType;
+use aspotify::{CurrentlyPlaying, PlaylistItemType};
 use std::sync::Arc;
 
 pub fn build_playlistinfo_result(
+    playing: Option<CurrentlyPlaying>,
     context: Arc<PlayContext>,
     range: Option<PositionRange>,
 ) -> HandlerResult {
@@ -47,8 +48,10 @@ pub fn build_playlistinfo_result(
         }
         PlayContext::Track(track) => songs.push(build_song_from_track(track, |_| 0)),
         PlayContext::Episode(ep) => songs.push(build_song_from_episode(ep, |_| 0)),
-        PlayContext::Artist(_) => {}
-        PlayContext::Empty => {}
+
+        // Fallback to a single item playlist when the context is not supported (radio, artist top tracks)
+        PlayContext::Artist(_) => return build_song_from_playing(playing, context),
+        PlayContext::Empty => return build_song_from_playing(playing, context),
     }
 
     Ok(HandlerOutput::Data(songs))

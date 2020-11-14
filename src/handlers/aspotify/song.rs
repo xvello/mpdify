@@ -1,8 +1,29 @@
-use crate::mpd_protocol::SongResponse;
-use aspotify::{Album, ArtistSimplified, Episode, EpisodeSimplified, Show, Track, TrackSimplified};
+use crate::handlers::aspotify::context::PlayContext;
+use crate::mpd_protocol::{HandlerOutput, HandlerResult, SongResponse};
+use aspotify::{
+    Album, ArtistSimplified, CurrentlyPlaying, Episode, EpisodeSimplified, PlayingType, Show,
+    Track, TrackSimplified,
+};
 use chrono::Datelike;
 use std::borrow::Borrow;
+use std::sync::Arc;
 
+pub fn build_song_from_playing(
+    input: Option<CurrentlyPlaying>,
+    context: Arc<PlayContext>,
+) -> HandlerResult {
+    input.map_or(Ok(HandlerOutput::Ok), |playing| {
+        playing.item.map_or(Ok(HandlerOutput::Ok), |item| {
+            let pos_provider = |id: &str| context.position_for_id(id);
+            Ok(HandlerOutput::from(match item.borrow() {
+                PlayingType::Episode(e) => build_song_from_episode(e, pos_provider),
+                PlayingType::Track(t) => build_song_from_track(t, pos_provider),
+                PlayingType::Ad(t) => build_song_from_track(t, pos_provider),
+                PlayingType::Unknown(t) => build_song_from_track(t, pos_provider),
+            }))
+        })
+    })
+}
 pub fn build_song_from_track(track: &Track, pos_provider: impl Fn(&str) -> usize) -> SongResponse {
     let spotify_id = track.id.clone().unwrap_or_else(String::new);
     let pos = pos_provider(spotify_id.as_str());

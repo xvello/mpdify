@@ -1,6 +1,7 @@
 use crate::handlers::aspotify::context::ContextCache;
 use crate::handlers::aspotify::playlist::build_playlistinfo_result;
-use crate::handlers::aspotify::status::{build_song_result, build_status_result};
+use crate::handlers::aspotify::song::build_song_from_playing;
+use crate::handlers::aspotify::status::build_status_result;
 use crate::mpd_protocol::*;
 use aspotify::{Client, ClientCredentials, Scope};
 use log::{debug, warn};
@@ -137,7 +138,7 @@ impl SpotifyHandler {
         let playing = self.client.player().get_playing_track(None).await?.data;
         let context_key = playing.as_ref().map(|p| p.context.as_ref()).flatten();
         let context = self.context_cache.get(context_key).await?;
-        build_song_result(playing, context)
+        build_song_from_playing(playing, context)
     }
 
     async fn execute_playlist_info(&mut self, range: Option<PositionRange>) -> HandlerResult {
@@ -145,7 +146,7 @@ impl SpotifyHandler {
         let playing = self.client.player().get_playing_track(None).await?.data;
         let context_key = playing.as_ref().map(|p| p.context.as_ref()).flatten();
         let context = self.context_cache.get(context_key).await?;
-        build_playlistinfo_result(context, range)
+        build_playlistinfo_result(playing, context, range)
     }
 
     async fn execute_auth_callback(&mut self, url: String) -> HandlerResult {
