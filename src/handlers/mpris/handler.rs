@@ -1,6 +1,7 @@
 use crate::handlers::mpris::watcher::MprisWatcher;
 use crate::handlers::mpris::MEDIAPLAYER2_PATH;
 use crate::mpd_protocol::*;
+use crate::util::{IdleBus, IdleMessage};
 use dbus::nonblock::stdintf::org_freedesktop_dbus::Peer;
 use dbus::nonblock::{Proxy, SyncConnection};
 use dbus_tokio::connection;
@@ -15,11 +16,11 @@ pub struct MprisHandler {
     target_name: String,
     proxy: Proxy<'static, Arc<SyncConnection>>,
     command_rx: Receiver<HandlerInput>,
-    idle_tx: broadcast::Sender<()>,
+    idle_bus: Arc<IdleBus>,
 }
 
 impl MprisHandler {
-    pub async fn new(target_name: String) -> (Self, Sender<HandlerInput>) {
+    pub async fn new(target_name: String, idle_bus: Arc<IdleBus>) -> (Self, Sender<HandlerInput>) {
         // Connect to the D-Bus session bus
         let (resource, conn) = connection::new_session_sync().unwrap();
         tokio::spawn(async move {
@@ -32,21 +33,20 @@ impl MprisHandler {
             Duration::from_secs(1),
             conn,
         );
-        let (idle_tx, _) = broadcast::channel(16);
         let (command_tx, command_rx) = mpsc::channel(16);
         (
             MprisHandler {
                 target_name,
                 proxy,
                 command_rx,
-                idle_tx,
+                idle_bus,
             },
             command_tx,
         )
     }
 
-    pub fn subscribe_idle(&self) -> broadcast::Receiver<()> {
-        self.idle_tx.subscribe()
+    pub fn subscribe_idle(&self) -> broadcast::Receiver<IdleMessage> {
+        self.idle_bus.subscribe()
     }
 
     pub async fn run(&mut self) {
@@ -55,7 +55,7 @@ impl MprisHandler {
         // Listen to dbus signals for idle management
         let idle_watch = MprisWatcher::new(
             self.proxy.connection.clone(),
-            self.idle_tx.clone(),
+            self.idle_bus.clone(),
             self.target_name.borrow(),
         )
         .await
@@ -76,7 +76,7 @@ impl MprisHandler {
         // Idle: wait until a PropertiesChanged signal is sent on dbus
         if let Command::Idle(_) = command {
             return self
-                .idle_tx
+                .idle_bus
                 .subscribe()
                 .recv()
                 .await

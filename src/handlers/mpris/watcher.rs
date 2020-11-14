@@ -1,4 +1,6 @@
 use crate::handlers::mpris::MEDIAPLAYER2_PATH;
+use crate::mpd_protocol::IdleSubsystem;
+use crate::util::IdleBus;
 use dbus::message::SignalArgs;
 use dbus::nonblock::stdintf::org_freedesktop_dbus::PropertiesPropertiesChanged;
 use dbus::nonblock::{MsgMatch, SyncConnection};
@@ -9,7 +11,6 @@ use log::debug;
 use std::borrow::Borrow;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::broadcast::Sender;
 
 static SIGNAL_MIN_INTERVAL: Duration = Duration::from_millis(250);
 
@@ -21,7 +22,7 @@ pub struct MprisWatcher {
 impl MprisWatcher {
     pub async fn new(
         conn: Arc<SyncConnection>,
-        idle_tx: Sender<()>,
+        idle_bus: Arc<IdleBus>,
         target_name: &str,
     ) -> Result<Self, Error> {
         let idle_path = Path::from(MEDIAPLAYER2_PATH);
@@ -38,7 +39,10 @@ impl MprisWatcher {
                 .await?
                 .cb(move |_, (_,): (String,)| {
                     if last_send.elapsed().ge(&SIGNAL_MIN_INTERVAL) {
-                        let _ = idle_tx.send(());
+                        // FIXME: we don't have enough info to know what changed
+                        idle_bus.notify(IdleSubsystem::Player);
+                        idle_bus.notify(IdleSubsystem::Mixer);
+                        idle_bus.notify(IdleSubsystem::Options);
                         last_send = Instant::now();
                     }
                     true

@@ -1,3 +1,5 @@
+use crate::mpd_protocol::IdleSubsystem;
+use crate::util::IdleBus;
 use aspotify::{model, Error, ItemType};
 use std::borrow::Borrow;
 use std::sync::Arc;
@@ -71,15 +73,17 @@ impl PlayContext {
 
 pub struct ContextCache {
     client: Arc<aspotify::Client>,
+    idle_bus: Arc<IdleBus>,
     data: Arc<PlayContext>,
     key: Option<model::Context>,
     empty: Arc<PlayContext>,
 }
 
 impl ContextCache {
-    pub fn new(client: Arc<aspotify::Client>) -> ContextCache {
+    pub fn new(client: Arc<aspotify::Client>, idle_bus: Arc<IdleBus>) -> ContextCache {
         ContextCache {
             client,
+            idle_bus,
             data: Arc::new(PlayContext::Empty),
             key: None,
             empty: Arc::new(PlayContext::Empty),
@@ -94,6 +98,7 @@ impl ContextCache {
                 if !hit {
                     self.data = Arc::new(self.retrieve(key).await?);
                     self.key = Some(key.clone());
+                    self.idle_bus.notify(IdleSubsystem::PlayQueue);
                 }
                 Ok(self.data.clone())
             }

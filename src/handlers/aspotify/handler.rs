@@ -4,6 +4,7 @@ use crate::handlers::aspotify::playlist::build_playlistinfo_result;
 use crate::handlers::aspotify::song::build_song_from_playing;
 use crate::handlers::aspotify::status::build_status_result;
 use crate::mpd_protocol::*;
+use crate::util::IdleBus;
 use aspotify::{Client, ClientCredentials};
 use log::{debug, warn};
 use std::sync::Arc;
@@ -18,10 +19,10 @@ pub struct SpotifyHandler {
 }
 
 impl SpotifyHandler {
-    pub async fn new() -> (Self, mpsc::Sender<HandlerInput>) {
+    pub async fn new(idle_bus: Arc<IdleBus>) -> (Self, mpsc::Sender<HandlerInput>) {
         let (command_tx, command_rx) = mpsc::channel(16);
         let client = Arc::new(Client::new(ClientCredentials::from_env().unwrap()));
-        let context_cache = ContextCache::new(client.clone());
+        let context_cache = ContextCache::new(client.clone(), idle_bus);
         let auth_status = AuthStatus::new(client.clone()).await;
 
         (
