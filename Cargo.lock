@@ -33,7 +33,7 @@ checksum = "4d25d88fd6b8041580a654f9d0c581a047baee2b3efee13275f2fc392fc75034"
 [[package]]
 name = "aspotify"
 version = "0.6.1"
-source = "git+https://github.com/xvello/aspotify.git?branch=mpdify#8a72a1650ad6f4ed2af72325b8efb80204df13ae"
+source = "git+https://github.com/xvello/aspotify.git?branch=mpdify#ac9c2ee65eb50e439bdc29f455c15cf158a49cfa"
 dependencies = [
  "base64 0.13.0",
  "chrono",
