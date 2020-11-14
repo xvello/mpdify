@@ -38,6 +38,7 @@ pub enum Command {
     Stop,
 
     // Volume
+    GetVolume,
     SetVolume(u32),    // Absolute value
     ChangeVolume(i32), // Relative change
 
@@ -98,6 +99,7 @@ impl FromStr for Command {
                 "playid" => parse_opt("id".to_string(), tokens.next()).map(PlayId),
 
                 // Volume
+                "getvol" => Ok(Command::GetVolume),
                 "setvol" => parse_arg("vol".to_string(), tokens.next()).map(SetVolume),
                 "volume" => parse_arg("change".to_string(), tokens.next()).map(ChangeVolume),
 

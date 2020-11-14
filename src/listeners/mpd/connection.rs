@@ -141,8 +141,10 @@ impl Connection {
                 let mut items = stream::iter(data.data);
                 while let Some(item) = items.next().await {
                     let bytes = to_vec(item.as_ref())?;
-                    self.write.write(bytes.as_ref()).await?;
-                    self.write.write(b"\n").await?;
+                    if !bytes.is_empty() {
+                        self.write.write(bytes.as_ref()).await?;
+                        self.write.write(b"\n").await?;
+                    }
                 }
             }
             HandlerOutput::Fields(data) => {

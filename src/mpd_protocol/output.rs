@@ -42,6 +42,12 @@ pub struct StatusPlaylistInfo {
     pub songid: usize,
 }
 
+#[derive(Debug, PartialEq, Serialize)]
+pub struct VolumeResponse {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub volume: Option<u32>,
+}
+
 /// Response for the currentsong command
 #[derive(Debug, PartialEq, Serialize)]
 #[serde(rename_all = "PascalCase")]

@@ -17,13 +17,18 @@ where
     let mut yaml =
         serde_yaml::to_vec(value).map_err(|err| HandlerError::FromString(err.to_string()))?;
     yaml.drain(0..4);
+
+    // FIXME: hack to mute empty yaml objects
+    if yaml == b"{}" {
+        return Ok(vec![]);
+    }
     Ok(yaml)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mpd_protocol::PlaybackStatus;
+    use crate::mpd_protocol::{PlaybackStatus, VolumeResponse};
     use serde::Serialize;
 
     #[derive(Debug, PartialEq, Serialize)]
@@ -41,6 +46,14 @@ mod tests {
         assert_eq!(
             to_vec(&String::from("hello")).expect("Serializer error"),
             b"hello".to_vec()
+        );
+    }
+
+    #[test]
+    fn test_empty() {
+        assert_eq!(
+            to_vec(&VolumeResponse { volume: None }).expect("Serializer error"),
+            b"".to_vec()
         );
     }
 

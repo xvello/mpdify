@@ -66,6 +66,9 @@ impl SpotifyHandler {
             Command::Pause(Some(false)) => self.exec(client.player().resume(None)).await,
             Command::Pause(Some(true)) => self.exec(client.player().pause(None)).await,
             Command::Pause(None) => self.execute_play_pause().await,
+
+            // Volume
+            Command::GetVolume => self.execute_get_volume().await,
             Command::SetVolume(value) => {
                 self.exec(client.player().set_volume(value as i32, None))
                     .await
@@ -135,5 +138,13 @@ impl SpotifyHandler {
         let context_key = playing.as_ref().map(|p| p.context.as_ref()).flatten();
         let context = self.context_cache.get(context_key).await?;
         build_playlistinfo_result(playing, context, range)
+    }
+
+    async fn execute_get_volume(&mut self) -> HandlerResult {
+        self.auth_status.check().await?;
+        let playback = self.client.player().get_playback(None).await?.data;
+        Ok(HandlerOutput::from(VolumeResponse {
+            volume: playback.map(|p| p.device.volume_percent).flatten(),
+        }))
     }
 }
