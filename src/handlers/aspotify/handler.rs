@@ -70,6 +70,7 @@ impl SpotifyHandler {
 
             // Volume
             Command::GetVolume => self.execute_get_volume().await,
+            Command::ChangeVolume(delta) => self.execute_change_volume(delta).await,
             Command::SetVolume(value) => {
                 self.exec(client.player().set_volume(value as i32, None))
                     .await
@@ -141,11 +142,26 @@ impl SpotifyHandler {
         build_playlistinfo_result(playing, context, range)
     }
 
-    async fn execute_get_volume(&mut self) -> HandlerResult {
+    async fn get_volume(&mut self) -> Result<Option<u32>, HandlerError> {
         self.auth_status.check().await?;
         let playback = self.client.player().get_playback(None).await?.data;
+        Ok(playback.map(|p| p.device.volume_percent).flatten())
+    }
+
+    async fn execute_get_volume(&mut self) -> HandlerResult {
         Ok(HandlerOutput::from(VolumeResponse {
-            volume: playback.map(|p| p.device.volume_percent).flatten(),
+            volume: self.get_volume().await?,
         }))
+    }
+
+    async fn execute_change_volume(&mut self, delta: i32) -> HandlerResult {
+        match self.get_volume().await? {
+            None => {}
+            Some(current) => {
+                let target = 100.min(0.max(current as i32 + delta));
+                self.client.player().set_volume(target, None).await?
+            }
+        }
+        Ok(HandlerOutput::Ok)
     }
 }
