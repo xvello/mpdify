@@ -7,6 +7,7 @@ use aspotify::{Client, ClientCredentials, Scope};
 use log::{debug, warn};
 use std::fs;
 use std::sync::Arc;
+use tokio::macros::support::Future;
 use tokio::sync::mpsc;
 
 pub struct SpotifyHandler {
@@ -54,6 +55,7 @@ impl SpotifyHandler {
     }
 
     async fn execute(&mut self, command: Command) -> HandlerResult {
+        let client = self.client.clone();
         match command {
             // Auth support
             Command::SpotifyAuth(token) => match token {
@@ -63,10 +65,17 @@ impl SpotifyHandler {
             // Playback status
             Command::Status => self.execute_status().await,
             Command::CurrentSong => self.execute_currentsong().await,
+
+            // Playback control
+            Command::Next => self.exec(client.player().skip_next(None)).await,
+            Command::Previous => self.exec(client.player().skip_prev(None)).await,
+            Command::Play(None) => self.exec(client.player().resume(None)).await,
+            Command::Pause(Some(false)) => self.exec(client.player().resume(None)).await,
+            Command::Pause(Some(true)) => self.exec(client.player().pause(None)).await,
+            Command::Pause(None) => self.execute_play_pause().await,
             Command::SetVolume(value) => {
-                self.ensure_authenticated().await?;
-                self.client.player().set_volume(value as i32, None).await?;
-                Ok(HandlerOutput::Ok)
+                self.exec(client.player().set_volume(value as i32, None))
+                    .await
             }
 
             // Playlist info
@@ -120,6 +129,27 @@ impl SpotifyHandler {
             }
             Some(_) => Ok(HandlerOutput::Ok),
         }
+    }
+
+    async fn exec(
+        &mut self,
+        f: impl Future<Output = Result<(), aspotify::model::Error>>,
+    ) -> HandlerResult where {
+        self.ensure_authenticated().await?;
+        f.await?;
+        Ok(HandlerOutput::Ok)
+    }
+
+    async fn execute_play_pause(&mut self) -> HandlerResult {
+        self.ensure_authenticated().await?;
+        match self.client.player().get_playing_track(None).await?.data {
+            None => self.client.player().resume(None).await?,
+            Some(playing) => match playing.is_playing {
+                true => self.client.player().pause(None).await?,
+                false => self.client.player().resume(None).await?,
+            },
+        }
+        Ok(HandlerOutput::Ok)
     }
 
     async fn execute_status(&mut self) -> HandlerResult {

@@ -1,4 +1,3 @@
-use crate::handlers::mpris::client::Player;
 use crate::handlers::mpris::watcher::MprisWatcher;
 use crate::handlers::mpris::MEDIAPLAYER2_PATH;
 use crate::mpd_protocol::*;
@@ -88,13 +87,15 @@ impl MprisHandler {
         // Other commands map to dbus calls
         match command {
             Command::Ping => self.proxy.ping(),
+
+            /* Use spotify API instead to avoid racing against it
             Command::Pause(Some(true)) => self.proxy.pause(),
             Command::Pause(Some(false)) => self.proxy.play(),
             Command::Pause(None) => self.proxy.play_pause(),
             Command::Play(None) => self.proxy.play(),
-
             Command::Next => self.proxy.next(),
             Command::Previous => self.proxy.previous(),
+            */
             _ => return Err(HandlerError::Unsupported),
         }
         .and_then(|_| Ok(HandlerOutput::Ok))

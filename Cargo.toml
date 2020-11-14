@@ -21,6 +21,6 @@ serde_yaml = "0.8.14"
 serde_fmt = "1.0.1"
 
 # Including https://github.com/KaiJewson/aspotify/pull/5
-aspotify = { git = "https://github.com/xvello/aspotify.git", branch = "keep_refresh_token" }
+aspotify = { git = "https://github.com/xvello/aspotify.git", branch = "mpdify" }
 #aspotify = "0.6.1"
 chrono = { version = "0.4" }
