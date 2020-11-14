@@ -11,6 +11,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::{broadcast, mpsc};
+use tokio_compat_02::FutureExt;
 
 pub struct MprisHandler {
     target_name: String,
@@ -24,7 +25,7 @@ impl MprisHandler {
         // Connect to the D-Bus session bus
         let (resource, conn) = connection::new_session_sync().unwrap();
         tokio::spawn(async move {
-            let err = resource.await;
+            let err = resource.compat().await;
             panic!("Lost connection to D-Bus: {}", err);
         });
         let proxy = Proxy::new(
@@ -99,6 +100,7 @@ impl MprisHandler {
             _ => return Err(HandlerError::Unsupported),
         }
         .and_then(|_| Ok(HandlerOutput::Ok))
+        .compat()
         .await
         .map_err(|err| HandlerError::FromString(err.message().unwrap().to_string()))
     }

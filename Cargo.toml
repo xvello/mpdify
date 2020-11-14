@@ -4,23 +4,22 @@ version = "0.1.0"
 authors = ["Xavier Vello <xavier.vello@gmail.com>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 thiserror = "1.0"
 log = "0.4"
 pretty_env_logger = "0.4"
-tokio = { version = "0.2.22", features = ["full"] }
-dbus = "0.8.4"
-dbus-tokio = "0.5.2"
-futures = "0.3.5"
+
+tokio = { version = "0.3", features = ["full"] }
+futures = "0.3"
+
+dbus = "0.9"
+dbus-tokio = "0.6"
+tokio-compat-02 = "0.1"
 
 serde = { version = "1.0", features = ["derive"] }
-erased-serde = "0.3.12"
-serde_yaml = "0.8.14"
-serde_fmt = "1.0.1"
+erased-serde = "0.3"
+serde_yaml = "0.8"
+serde_fmt = "1.0"
 
-# Including https://github.com/KaiJewson/aspotify/pull/5
 aspotify = { git = "https://github.com/xvello/aspotify.git", branch = "mpdify" }
-#aspotify = "0.6.1"
 chrono = { version = "0.4" }
