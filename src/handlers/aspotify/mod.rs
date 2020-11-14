@@ -1,3 +1,4 @@
+mod auth;
 mod context;
 mod handler;
 mod playlist;

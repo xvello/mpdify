@@ -1,11 +1,11 @@
+use crate::handlers::aspotify::auth::AuthStatus;
 use crate::handlers::aspotify::context::ContextCache;
 use crate::handlers::aspotify::playlist::build_playlistinfo_result;
 use crate::handlers::aspotify::song::build_song_from_playing;
 use crate::handlers::aspotify::status::build_status_result;
 use crate::mpd_protocol::*;
-use aspotify::{Client, ClientCredentials, Scope};
+use aspotify::{Client, ClientCredentials};
 use log::{debug, warn};
-use std::fs;
 use std::sync::Arc;
 use tokio::macros::support::Future;
 use tokio::sync::mpsc;
@@ -13,29 +13,22 @@ use tokio::sync::mpsc;
 pub struct SpotifyHandler {
     command_rx: mpsc::Receiver<HandlerInput>,
     client: Arc<Client>,
-    auth_state: Option<String>,
     context_cache: ContextCache,
+    auth_status: AuthStatus,
 }
-
-static REFRESH_TOKEN_FILE: &str = ".refresh_token";
 
 impl SpotifyHandler {
     pub async fn new() -> (Self, mpsc::Sender<HandlerInput>) {
         let (command_tx, command_rx) = mpsc::channel(16);
         let client = Arc::new(Client::new(ClientCredentials::from_env().unwrap()));
         let context_cache = ContextCache::new(client.clone());
-
-        // Try to read refresh token from file
-        if let Ok(token) = fs::read_to_string(REFRESH_TOKEN_FILE) {
-            debug!["Reading refresh token from file"];
-            client.set_refresh_token(Some(token)).await;
-        }
+        let auth_status = AuthStatus::new(client.clone()).await;
 
         (
             SpotifyHandler {
                 command_rx,
                 client,
-                auth_state: None,
+                auth_status,
                 context_cache,
             },
             command_tx,
@@ -59,8 +52,8 @@ impl SpotifyHandler {
         match command {
             // Auth support
             Command::SpotifyAuth(token) => match token {
-                None => self.ensure_authenticated().await,
-                Some(url) => self.execute_auth_callback(url).await,
+                None => self.auth_status.check().await,
+                Some(url) => self.auth_status.callback(url).await,
             },
             // Playback status
             Command::Status => self.execute_status().await,
@@ -96,52 +89,17 @@ impl SpotifyHandler {
         }
     }
 
-    async fn ensure_authenticated(&mut self) -> HandlerResult {
-        match self.client.refresh_token().await {
-            None => {
-                let (url, state) = aspotify::authorization_url(
-                    &self.client.credentials.id,
-                    vec![
-                        Scope::UserReadPlaybackState,
-                        Scope::UserModifyPlaybackState,
-                        Scope::UserReadCurrentlyPlaying,
-                        Scope::Streaming,
-                        Scope::AppRemoteControl,
-                        Scope::PlaylistReadCollaborative,
-                        Scope::PlaylistModifyPublic,
-                        Scope::PlaylistReadPrivate,
-                        Scope::PlaylistModifyPrivate,
-                        Scope::UserLibraryModify,
-                        Scope::UserLibraryRead,
-                        Scope::UserTopRead,
-                        Scope::UserReadRecentlyPlayed,
-                        Scope::UserReadPlaybackPosition,
-                        Scope::UserFollowRead,
-                        Scope::UserFollowModify,
-                    ]
-                    .iter()
-                    .copied(),
-                    true,
-                    "http://localhost/",
-                );
-                self.auth_state = Some(state);
-                Err(HandlerError::AuthNeeded(url))
-            }
-            Some(_) => Ok(HandlerOutput::Ok),
-        }
-    }
-
     async fn exec(
         &mut self,
         f: impl Future<Output = Result<(), aspotify::model::Error>>,
     ) -> HandlerResult where {
-        self.ensure_authenticated().await?;
+        self.auth_status.check().await?;
         f.await?;
         Ok(HandlerOutput::Ok)
     }
 
     async fn execute_play_pause(&mut self) -> HandlerResult {
-        self.ensure_authenticated().await?;
+        self.auth_status.check().await?;
         match self.client.player().get_playing_track(None).await?.data {
             None => self.client.player().resume(None).await?,
             Some(playing) => match playing.is_playing {
@@ -153,7 +111,7 @@ impl SpotifyHandler {
     }
 
     async fn execute_status(&mut self) -> HandlerResult {
-        self.ensure_authenticated().await?;
+        self.auth_status.check().await?;
         let playback = self.client.player().get_playback(None).await?.data;
         let context_key = playback
             .as_ref()
@@ -164,7 +122,7 @@ impl SpotifyHandler {
     }
 
     async fn execute_currentsong(&mut self) -> HandlerResult {
-        self.ensure_authenticated().await?;
+        self.auth_status.check().await?;
         let playing = self.client.player().get_playing_track(None).await?.data;
         let context_key = playing.as_ref().map(|p| p.context.as_ref()).flatten();
         let context = self.context_cache.get(context_key).await?;
@@ -172,38 +130,10 @@ impl SpotifyHandler {
     }
 
     async fn execute_playlist_info(&mut self, range: Option<PositionRange>) -> HandlerResult {
-        self.ensure_authenticated().await?;
+        self.auth_status.check().await?;
         let playing = self.client.player().get_playing_track(None).await?.data;
         let context_key = playing.as_ref().map(|p| p.context.as_ref()).flatten();
         let context = self.context_cache.get(context_key).await?;
         build_playlistinfo_result(playing, context, range)
-    }
-
-    async fn execute_auth_callback(&mut self, url: String) -> HandlerResult {
-        if self.auth_state.is_none() {
-            return Err(HandlerError::FromString("no ongoing auth".to_string()));
-        }
-
-        match self
-            .client
-            .redirected(&url, self.auth_state.as_ref().unwrap())
-            .await
-        {
-            Ok(_) => {
-                // Put the refresh token in a file.
-                fs::write(
-                    REFRESH_TOKEN_FILE,
-                    self.client.refresh_token().await.unwrap(),
-                )
-                .unwrap();
-
-                debug!["Successfully authenticated"];
-                Ok(HandlerOutput::Ok)
-            }
-            Err(err) => {
-                debug!["Error authenticating: {:?}", err];
-                Err(HandlerError::RedirectedError(err))
-            }
-        }
     }
 }
