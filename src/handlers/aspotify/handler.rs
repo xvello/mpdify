@@ -129,7 +129,6 @@ impl SpotifyHandler {
             .map(|p| p.currently_playing.context.as_ref())
             .flatten();
         let context = self.context_cache.get(context_key).await?;
-        debug!("Context {:?} from key {:?}", context, context_key);
         build_status_result(playback, context)
     }
 
