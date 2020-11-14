@@ -1,13 +1,11 @@
-use crate::handlers::aspotify::context::PlayContext;
 use crate::mpd_protocol::SongResponse;
 use aspotify::{Album, ArtistSimplified, Episode, EpisodeSimplified, Show, Track, TrackSimplified};
 use chrono::Datelike;
 use std::borrow::Borrow;
-use std::sync::Arc;
 
-pub fn build_song_from_track(track: &Track, context: Arc<PlayContext>) -> SongResponse {
+pub fn build_song_from_track(track: &Track, pos_provider: impl Fn(&str) -> usize) -> SongResponse {
     let spotify_id = track.id.clone().unwrap_or_else(String::new);
-    let pos = context.ordinal_for_id(spotify_id.as_str());
+    let pos = pos_provider(spotify_id.as_str());
 
     SongResponse {
         file: spotify_id,
@@ -44,9 +42,9 @@ pub fn build_song_from_tracksimplified(
     }
 }
 
-pub fn build_song_from_episode(ep: &Episode, context: Arc<PlayContext>) -> SongResponse {
+pub fn build_song_from_episode(ep: &Episode, pos_provider: impl Fn(&str) -> usize) -> SongResponse {
     let spotify_id = ep.id.as_str();
-    let pos = context.ordinal_for_id(spotify_id);
+    let pos = pos_provider(spotify_id);
 
     SongResponse {
         file: spotify_id.to_string(),

@@ -31,7 +31,7 @@ pub fn build_status_result(
                 .map(extract_id)
                 .flatten()
                 .unwrap_or_else(|| String::from("unknown"));
-            let pos = context.ordinal_for_id(spotify_id.as_str());
+            let pos = context.position_for_id(spotify_id.as_str());
             Ok(HandlerOutput::from(StatusResponse {
                 volume: data.device.volume_percent,
                 state: if data.currently_playing.is_playing {
@@ -66,11 +66,12 @@ pub fn build_song_result(
 ) -> HandlerResult {
     input.map_or(Ok(HandlerOutput::Ok), |playing| {
         playing.item.map_or(Ok(HandlerOutput::Ok), |item| {
+            let pos_provider = |id: &str| context.position_for_id(id);
             Ok(HandlerOutput::from(match item.borrow() {
-                PlayingType::Episode(e) => build_song_from_episode(e, context),
-                PlayingType::Track(t) => build_song_from_track(t, context),
-                PlayingType::Ad(t) => build_song_from_track(t, context),
-                PlayingType::Unknown(t) => build_song_from_track(t, context),
+                PlayingType::Episode(e) => build_song_from_episode(e, pos_provider),
+                PlayingType::Track(t) => build_song_from_track(t, pos_provider),
+                PlayingType::Ad(t) => build_song_from_track(t, pos_provider),
+                PlayingType::Unknown(t) => build_song_from_track(t, pos_provider),
             }))
         })
     })

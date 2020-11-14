@@ -33,19 +33,20 @@ pub fn build_playlistinfo_result(
         PlayContext::Playlist(playlist) => {
             for (pos, item) in playlist.tracks.items.iter().enumerate() {
                 if include(pos) {
+                    let pos_provider = |_: &str| pos;
                     match &item.item {
                         PlaylistItemType::Track(track) => {
-                            songs.push(build_song_from_track(track, context.clone()))
+                            songs.push(build_song_from_track(track, pos_provider))
                         }
                         PlaylistItemType::Episode(ep) => {
-                            songs.push(build_song_from_episode(ep, context.clone()))
+                            songs.push(build_song_from_episode(ep, pos_provider))
                         }
                     }
                 }
             }
         }
-        PlayContext::Track(track) => songs.push(build_song_from_track(track, context.clone())),
-        PlayContext::Episode(ep) => songs.push(build_song_from_episode(ep, context.clone())),
+        PlayContext::Track(track) => songs.push(build_song_from_track(track, |_| 0)),
+        PlayContext::Episode(ep) => songs.push(build_song_from_episode(ep, |_| 0)),
         PlayContext::Artist(_) => {}
         PlayContext::Empty => {}
     }

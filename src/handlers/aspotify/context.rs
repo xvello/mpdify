@@ -26,7 +26,11 @@ impl PlayContext {
         }
     }
 
-    pub fn ordinal_for_id(&self, id: &str) -> usize {
+    /// Scans the playing context and returns the position (starting at zero)
+    /// of the item with the given ID, if found.
+    /// Returns zero if the item is not found.
+    /// TODO: we assume IDs are globally unique and don't check the item type (track/episode)
+    pub fn position_for_id(&self, id: &str) -> usize {
         match self {
             PlayContext::Album(album) => {
                 for (pos, track) in album.tracks.items.iter().enumerate() {
