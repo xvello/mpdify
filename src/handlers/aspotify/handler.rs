@@ -1,4 +1,5 @@
 use crate::handlers::aspotify::context::ContextCache;
+use crate::handlers::aspotify::playlist::build_playlistinfo_result;
 use crate::handlers::aspotify::status::{build_song_result, build_status_result};
 use crate::mpd_protocol::*;
 use aspotify::{Client, ClientCredentials, Scope};
@@ -67,6 +68,19 @@ impl SpotifyHandler {
                 Ok(HandlerOutput::Ok)
             }
 
+            // Playlist info
+            Command::PlaylistInfo(range) => self.execute_playlist_info(range).await,
+            Command::PlaylistId(id) => match id {
+                None => self.execute_playlist_info(None).await,
+                Some(id) => {
+                    self.execute_playlist_info(Some(PositionRange {
+                        start: id - 1,
+                        end: id,
+                    }))
+                    .await
+                }
+            },
+
             // Unsupported
             _ => Err(HandlerError::Unsupported),
         }
@@ -125,6 +139,14 @@ impl SpotifyHandler {
         let context_key = playing.as_ref().map(|p| p.context.as_ref()).flatten();
         let context = self.context_cache.get(context_key).await?;
         build_song_result(playing, context)
+    }
+
+    async fn execute_playlist_info(&mut self, range: Option<PositionRange>) -> HandlerResult {
+        self.ensure_authenticated().await?;
+        let playing = self.client.player().get_playing_track(None).await?.data;
+        let context_key = playing.as_ref().map(|p| p.context.as_ref()).flatten();
+        let context = self.context_cache.get(context_key).await?;
+        build_playlistinfo_result(context, range)
     }
 
     async fn execute_auth_callback(&mut self, url: String) -> HandlerResult {

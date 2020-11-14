@@ -51,8 +51,6 @@ impl PlayContext {
                     };
                 }
             }
-            PlayContext::Artist(_) => {}
-            PlayContext::Track(_) => {}
             PlayContext::Show(show) => {
                 for (pos, item) in show.episodes.items.iter().enumerate() {
                     if item.id.eq(id) {
@@ -60,8 +58,7 @@ impl PlayContext {
                     }
                 }
             }
-            PlayContext::Episode(_) => {}
-            PlayContext::Empty => {}
+            _ => {}
         };
         // Default to 0 if not found
         0

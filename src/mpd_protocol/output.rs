@@ -68,13 +68,17 @@ pub struct OutputData {
 }
 
 impl OutputData {
+    pub fn empty() -> OutputData {
+        OutputData { data: Vec::new() }
+    }
+
     pub fn from<T: 'static>(value: T) -> OutputData
     where
         T: erased_serde::Serialize + Send,
     {
-        let mut data: Vec<Box<dyn erased_serde::Serialize + Send>> = Vec::new();
-        data.push(Box::from(value));
-        OutputData { data }
+        let mut out = OutputData::empty();
+        out.push(value);
+        out
     }
 
     pub fn push<T: 'static>(&mut self, value: T)

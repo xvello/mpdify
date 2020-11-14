@@ -7,7 +7,8 @@ use crate::mpd_protocol::input::InputError::{
     InvalidArgument, MissingArgument, MissingCommand, UnknownCommand,
 };
 use crate::mpd_protocol::input::{InputError, RelativeFloat};
-use crate::mpd_protocol::CommandList;
+use crate::mpd_protocol::Command::{PlaylistId, PlaylistInfo};
+use crate::mpd_protocol::{CommandList, PositionRange};
 use std::borrow::Borrow;
 
 // From https://www.musicpd.org/doc/html/protcurrentsongocol.html
@@ -19,6 +20,10 @@ pub enum Command {
     Idle,
     Status,
     Stats,
+
+    // Playlist info
+    PlaylistInfo(Option<PositionRange>), // End is exclusive
+    PlaylistId(Option<usize>),
 
     // Playback options
 
@@ -65,6 +70,10 @@ impl FromStr for Command {
                 "idle" => Ok(Command::Idle),
                 "status" => Ok(Command::Status),
                 "stats" => Ok(Command::Stats),
+
+                // Playlist info
+                "playlistinfo" => parse_opt("range".to_string(), tokens.next()).map(PlaylistInfo),
+                "playlistid" => parse_opt("songid".to_string(), tokens.next()).map(PlaylistId),
 
                 // Playback control
                 "next" => Ok(Command::Next),
