@@ -1,25 +1,24 @@
-use crate::mpd_protocol::HandlerError;
+use crate::mpd_protocol::InputError;
 use hyper::header::CONTENT_TYPE;
 use hyper::{Body, Response, StatusCode};
-use log::warn;
+use log::{debug, warn};
 use serde::Serialize;
 
 pub type GenericError = Box<dyn std::error::Error + Send + Sync>;
 pub type Result = std::result::Result<Response<Body>, GenericError>;
 
 pub fn handle_error(err: GenericError) -> Result {
-    if let Some(err) = err.downcast_ref::<HandlerError>() {
-        warn!["Handler error: {:?}", err];
-        return internal_error();
+    if let Some(err) = err.downcast_ref::<InputError>() {
+        debug!["Input error: {:?}", err];
+        return Ok(Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .body(format!["{:?}", err].into())
+            .unwrap());
     }
-    warn!["Unknown error: {:?}", err];
-    internal_error()
-}
-
-pub fn internal_error() -> Result {
+    warn!["Handler error: {:?}", err];
     Ok(Response::builder()
         .status(StatusCode::INTERNAL_SERVER_ERROR)
-        .body("Internal error".into())
+        .body(format!["{:?}", err].into())
         .unwrap())
 }
 

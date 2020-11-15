@@ -70,7 +70,7 @@ impl PositionRange {
     pub fn one(pos: usize) -> PositionRange {
         PositionRange {
             start: pos,
-            end: pos - 1,
+            end: pos + 1,
         }
     }
 

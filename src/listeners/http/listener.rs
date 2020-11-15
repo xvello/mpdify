@@ -4,6 +4,7 @@ use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Server};
 use log::debug;
 use std::net::SocketAddr;
+use std::str::Split;
 use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::oneshot;
@@ -42,7 +43,7 @@ async fn handle_request(req: Request<Body>, handler: Handler) -> Result {
     let mut path_parts = req.uri().path()[1..].split('/');
 
     match match path_parts.next() {
-        Some("command") => handle_command(handler, path_parts.next()).await,
+        Some("command") => handle_command(handler, path_parts).await,
         _ => not_found(),
     } {
         Ok(result) => Ok(result),
@@ -50,29 +51,16 @@ async fn handle_request(req: Request<Body>, handler: Handler) -> Result {
     }
 }
 
-async fn handle_command(handler: Handler, command: Option<&str>) -> Result {
-    match command {
-        None | Some("") => not_found(),
-        Some(command) => match execute_command(handler, command).await? {
-            HandlerOutput::Data(data) => ok_json(&data),
-            HandlerOutput::Ok => ok_empty(),
-            HandlerOutput::Close => ok_empty(),
-        },
+async fn handle_command(handler: Handler, input: Split<'_, char>) -> Result {
+    let command = Command::from_tokens(input)?;
+    match execute_command(handler, command).await? {
+        HandlerOutput::Data(data) => ok_json(&data),
+        HandlerOutput::Ok => ok_empty(),
+        HandlerOutput::Close => ok_empty(),
     }
 }
 
-async fn execute_command(handler: Handler, command: &str) -> HandlerResult {
-    let command = match command {
-        "pause" => Command::Pause(None),
-        "play" => Command::Play(None),
-        "next" => Command::Next,
-        "previous" => Command::Previous,
-        "status" => Command::Status,
-        "currentsong" => Command::CurrentSong,
-        "playlistinfo" => Command::PlaylistInfo(None),
-        _ => Command::Close,
-    };
-
+async fn execute_command(handler: Handler, command: Command) -> HandlerResult {
     let (tx, rx) = oneshot::channel();
     handler.send(HandlerInput { command, resp: tx }).await?;
     rx.await.unwrap()

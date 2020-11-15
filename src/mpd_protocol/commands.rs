@@ -1,5 +1,5 @@
 use crate::mpd_protocol::commands::Command::{
-    ChangeVolume, Pause, Play, PlayId, SeekCur, SetVolume, SpotifyAuth,
+    ChangeVolume, Pause, PlayId, PlayPos, SeekCur, SetVolume, SpotifyAuth,
 };
 use crate::mpd_protocol::input::InputError::{
     InvalidArgument, MissingArgument, MissingCommand, UnknownCommand,
@@ -29,9 +29,9 @@ pub enum Command {
 
     // Playback control
     Next,
-    Pause(Option<bool>), // None means toggle
-    Play(Option<u32>),   // None means unpause
-    PlayId(Option<u32>),
+    Pause(Option<bool>),    // None means toggle
+    PlayPos(Option<usize>), // None means unpause, position >=0
+    PlayId(Option<usize>),  // None means unpause, id > 0
     Previous,
     // Seek, SeekId
     SeekCur(RelativeFloat), // Seconds
@@ -59,8 +59,15 @@ impl FromStr for Command {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let tokenized = tokenize_command(s);
-        let mut tokens = tokenized.iter();
+        Command::from_tokens(tokenized.iter().map(String::as_str))
+    }
+}
 
+impl Command {
+    pub fn from_tokens<'a, I>(mut tokens: I) -> Result<Self, InputError>
+    where
+        I: Iterator<Item = &'a str>,
+    {
         tokens
             .next()
             .ok_or(MissingCommand)
@@ -85,7 +92,9 @@ impl FromStr for Command {
 
                 // Playlist info
                 "playlistinfo" => parse_opt("range".to_string(), tokens.next()).map(PlaylistInfo),
-                "playlistid" => parse_opt("songid".to_string(), tokens.next()).map(PlaylistId),
+                "playlistid" => parse_opt("songid".to_string(), tokens.next())
+                    .and_then(check_song_id)
+                    .map(PlaylistId),
 
                 // Playback control
                 "next" => Ok(Command::Next),
@@ -95,8 +104,10 @@ impl FromStr for Command {
                 "previous" => Ok(Command::Previous),
                 "seekcur" => parse_arg("time".to_string(), tokens.next()).map(SeekCur),
                 "stop" => Ok(Command::Stop),
-                "play" => parse_opt("pos".to_string(), tokens.next()).map(Play),
-                "playid" => parse_opt("id".to_string(), tokens.next()).map(PlayId),
+                "play" => parse_opt("pos".to_string(), tokens.next()).map(PlayPos),
+                "playid" => parse_opt("songid".to_string(), tokens.next())
+                    .and_then(check_song_id)
+                    .map(PlayId),
 
                 // Volume
                 "getvol" => Ok(Command::GetVolume),
@@ -128,7 +139,7 @@ impl FromStr for Command {
     }
 }
 
-fn parse_arg<T: FromStr>(name: String, token: Option<&String>) -> Result<T, InputError> {
+fn parse_arg<T: FromStr>(name: String, token: Option<&str>) -> Result<T, InputError> {
     let parsed: Option<T> = parse_opt(name.clone(), token)?;
     match parsed {
         None => Err(MissingArgument(name)),
@@ -136,7 +147,7 @@ fn parse_arg<T: FromStr>(name: String, token: Option<&String>) -> Result<T, Inpu
     }
 }
 
-fn parse_opt<T: FromStr>(name: String, token: Option<&String>) -> Result<Option<T>, InputError> {
+fn parse_opt<T: FromStr>(name: String, token: Option<&str>) -> Result<Option<T>, InputError> {
     match token {
         None => Ok(None),
         Some(v) => {
@@ -145,6 +156,14 @@ fn parse_opt<T: FromStr>(name: String, token: Option<&String>) -> Result<Option<
                 // TODO: propagate parsing error
                 .map_err(|_e| InvalidArgument(name, v.to_string()))
         }
+    }
+}
+
+/// Ensures song IDs are strictly higher than zero (invalid value)
+fn check_song_id(id: Option<usize>) -> Result<Option<usize>, InputError> {
+    match id {
+        Some(0) => Err(InvalidArgument("songid".to_string(), "0".to_string())),
+        _ => Ok(id),
     }
 }
 
@@ -216,6 +235,25 @@ mod tests {
         assert_eq!(
             Command::from_str("pause A").err().unwrap(),
             InvalidArgument("paused".to_string(), "A".to_string())
+        );
+    }
+
+    #[test]
+    fn test_playid() {
+        assert_eq!(Command::from_str("playid 1").unwrap(), PlayId(Some(1)));
+        assert_eq!(Command::from_str("playid").unwrap(), PlayId(None));
+
+        assert_eq!(
+            Command::from_str("playid A").err().unwrap(),
+            InvalidArgument("songid".to_string(), "A".to_string())
+        );
+        assert_eq!(
+            Command::from_str("playid 0").err().unwrap(),
+            InvalidArgument("songid".to_string(), "0".to_string())
+        );
+        assert_eq!(
+            Command::from_str("playid -10").err().unwrap(),
+            InvalidArgument("songid".to_string(), "-10".to_string())
         );
     }
 

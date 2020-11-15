@@ -66,7 +66,11 @@ impl SpotifyHandler {
             // Playback control
             Command::Next => self.exec(client.player().skip_next(None)).await,
             Command::Previous => self.exec(client.player().skip_prev(None)).await,
-            Command::Play(None) => self.exec(client.player().resume(None)).await,
+            Command::PlayPos(None) => self.exec(client.player().resume(None)).await,
+            Command::PlayId(None) => self.exec(client.player().resume(None)).await,
+            Command::PlayId(Some(0)) => Err(HandlerError::FromString(String::from(
+                "songID must be higher and 0",
+            ))),
             Command::Pause(Some(false)) => self.exec(client.player().resume(None)).await,
             Command::Pause(Some(true)) => self.exec(client.player().pause(None)).await,
             Command::Pause(None) => self.execute_play_pause().await,
@@ -80,6 +84,9 @@ impl SpotifyHandler {
             // Playlist info
             Command::PlaylistInfo(range) => self.execute_playlist_info(range).await,
             Command::PlaylistId(None) => self.execute_playlist_info(None).await,
+            Command::PlaylistId(Some(0)) => Err(HandlerError::FromString(String::from(
+                "songID must be higher and 0",
+            ))),
             Command::PlaylistId(Some(id)) => {
                 self.execute_playlist_info(Some(PositionRange::one(id - 1)))
                     .await
