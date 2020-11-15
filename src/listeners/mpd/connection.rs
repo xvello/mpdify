@@ -147,13 +147,6 @@ impl Connection {
                     }
                 }
             }
-            HandlerOutput::Fields(data) => {
-                for (key, value) in data {
-                    self.write
-                        .write(format!["{}: {}\n", key, value].as_bytes())
-                        .await?;
-                }
-            }
         }
 
         match ok_output {

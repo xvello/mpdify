@@ -1,5 +1,5 @@
 use serde::export::Formatter;
-use serde::Serialize;
+use serde::{Serialize, Serializer};
 use std::fmt;
 
 use crate::mpd_protocol::bool_to_int;
@@ -102,5 +102,19 @@ impl fmt::Debug for OutputData {
             f.write_str(", ")?;
         }
         Ok(())
+    }
+}
+
+impl serde::Serialize for OutputData {
+    fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error>
+    where
+        S: Serializer,
+    {
+        match self.data.len() {
+            // If it holds a single item, silently unpack the list
+            1 => self.data.get(0).unwrap().serialize(serializer),
+            // Serialize as an item list
+            _ => self.data.serialize(serializer),
+        }
     }
 }

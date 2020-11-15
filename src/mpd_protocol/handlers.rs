@@ -29,9 +29,6 @@ pub enum HandlerOutput {
     /// Executed OK, no results to return
     Ok,
     /// Executed OK, returns data for client,
-    /// using a vec to preserve input order
-    Fields(Vec<(String, String)>),
-    /// Executed OK, returns data for client,
     /// as a serializable type
     Data(OutputData),
     /// Executed OK, close the connection

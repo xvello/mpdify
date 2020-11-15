@@ -100,7 +100,6 @@ impl MprisHandler {
             _ => return Err(HandlerError::Unsupported),
         }
         .and_then(|_| Ok(HandlerOutput::Ok))
-        .compat()
         .await
         .map_err(|err| HandlerError::FromString(err.message().unwrap().to_string()))
     }

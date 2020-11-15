@@ -11,7 +11,6 @@ use log::debug;
 use std::borrow::Borrow;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio_compat_02::FutureExt;
 
 static SIGNAL_MIN_INTERVAL: Duration = Duration::from_millis(250);
 
@@ -37,7 +36,6 @@ impl MprisWatcher {
         let mut last_send = Instant::now();
         let matcher =
             conn.add_match(idle_mc.static_clone())
-                .compat()
                 .await?
                 .cb(move |_, (_,): (String,)| {
                     if last_send.elapsed().ge(&SIGNAL_MIN_INTERVAL) {

@@ -61,12 +61,6 @@ async fn it_calls_custom_handler() {
     client.assert_response("OK\n".to_string()).await;
     assert!(!is_paused.load(Acquire));
 
-    // stats command is sent to our handler
-    client.send_command("stats").await;
-    client
-        .assert_response("one: 1\ntwo: 2\nOK\n".to_string())
-        .await;
-
     // status command is sent to our handler
     client.send_command("status").await;
     client
@@ -95,18 +89,18 @@ async fn it_supports_command_lists() {
     tokio::spawn(async move { listener.run().await });
 
     let mut client = Client::new(address.clone()).await;
-    let stats = "one: 1\ntwo: 2\n";
+    let status = "volume: 20\nstate: pause\n";
 
     // We only get a single OK by default
-    client.send_commands(vec!["stats", "stats"], false).await;
+    client.send_commands(vec!["status", "status"], false).await;
     client
-        .assert_response(format!["{}{}OK\n", stats, stats])
+        .assert_response(format!["{}{}OK\n", status, status])
         .await;
 
     // We expect list_OK between each answer
-    client.send_commands(vec!["stats", "stats"], true).await;
+    client.send_commands(vec!["status", "status"], true).await;
     client
-        .assert_response(format!["{}list_OK\n{}list_OK\nOK\n", stats, stats])
+        .assert_response(format!["{}list_OK\n{}list_OK\nOK\n", status, status])
         .await;
 }
 
@@ -149,13 +143,6 @@ impl CustomHandler {
                         volume: Some(20),
                         state: PlaybackStatus::Pause,
                     }))
-                }
-                Command::Stats => {
-                    debug!["Called custom stats handler"];
-                    Ok(HandlerOutput::Fields(vec![
-                        ("one".to_string(), "1".to_string()),
-                        ("two".to_string(), "2".to_string()),
-                    ]))
                 }
                 _ => Err(HandlerError::Unsupported),
             };
