@@ -1,6 +1,7 @@
 use crate::listeners::mpd::connection::Connection;
 use crate::listeners::mpd::types::Handlers;
 use crate::mpd_protocol::*;
+use crate::util::Settings;
 use log::{debug, warn};
 use tokio::net::TcpListener;
 use tokio::sync::mpsc;
@@ -12,7 +13,7 @@ pub struct MpdListener {
 
 /// Listens to incoming connections and spawns one Connection task by client
 impl MpdListener {
-    pub async fn new(address: String, mut handlers: Handlers) -> Self {
+    pub async fn new(settings: &Settings, mut handlers: Handlers) -> Self {
         // Run basic fallback handler
         let (tx, rx) = mpsc::channel(8);
         handlers.push(tx);
@@ -22,7 +23,7 @@ impl MpdListener {
         });
 
         MpdListener {
-            tcp_listener: TcpListener::bind(address).await.unwrap(),
+            tcp_listener: TcpListener::bind(settings.mpd_address()).await.unwrap(),
             command_handlers: handlers,
         }
     }
@@ -32,6 +33,7 @@ impl MpdListener {
     }
 
     pub async fn run(&mut self) {
+        debug!["Listening on {}", self.get_address().unwrap_or_default()];
         loop {
             let (socket, _) = self.tcp_listener.accept().await.unwrap();
             let copied_handlers = self.command_handlers.to_owned();

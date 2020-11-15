@@ -1,4 +1,5 @@
 use crate::mpd_protocol::{HandlerError, HandlerOutput, HandlerResult};
+use crate::util::Settings;
 use aspotify::Scope;
 use log::debug;
 use std::fs;
@@ -8,11 +9,12 @@ static REFRESH_TOKEN_FILE: &str = ".refresh_token";
 
 pub struct AuthStatus {
     client: Arc<aspotify::Client>,
+    auth_path: String,
     auth_state: Option<String>,
 }
 
 impl AuthStatus {
-    pub async fn new(client: Arc<aspotify::Client>) -> Self {
+    pub async fn new(settings: &Settings, client: Arc<aspotify::Client>) -> Self {
         // Try to read refresh token from file
         if let Ok(token) = fs::read_to_string(REFRESH_TOKEN_FILE) {
             debug!["Restoring refresh token from file"];
@@ -23,6 +25,7 @@ impl AuthStatus {
 
         AuthStatus {
             client,
+            auth_path: settings.auth_path(),
             auth_state: None,
         }
     }
@@ -53,7 +56,7 @@ impl AuthStatus {
                     .iter()
                     .copied(),
                     true,
-                    "http://localhost/",
+                    self.auth_path.as_str(),
                 );
                 self.auth_state = Some(state);
                 Err(HandlerError::AuthNeeded(url))

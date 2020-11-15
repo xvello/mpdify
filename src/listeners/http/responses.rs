@@ -1,5 +1,5 @@
 use crate::mpd_protocol::InputError;
-use hyper::header::CONTENT_TYPE;
+use hyper::header::{CONTENT_TYPE, LOCATION};
 use hyper::{Body, Response, StatusCode};
 use log::{debug, warn};
 use serde::Serialize;
@@ -44,5 +44,20 @@ where
         .status(StatusCode::OK)
         .header(CONTENT_TYPE, "application/json")
         .body(serde_json::to_vec_pretty(body)?.into())
+        .unwrap())
+}
+
+pub fn auth_ok() -> Result {
+    Ok(Response::builder()
+        .status(StatusCode::OK)
+        .body("Authenticated OK".into())
+        .unwrap())
+}
+
+pub fn auth_redirect(destination: &str) -> Result {
+    Ok(Response::builder()
+        .status(StatusCode::FOUND)
+        .header(LOCATION, destination)
+        .body(format!["Redirecting you to: {}", destination].into())
         .unwrap())
 }

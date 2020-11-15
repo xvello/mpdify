@@ -1,6 +1,8 @@
+use config::Config;
 use log::{debug, warn};
 use mpdify::listeners::mpd::MpdListener;
 use mpdify::mpd_protocol::{Command, HandlerError, HandlerInput, HandlerOutput, PlaybackStatus};
+use mpdify::util::Settings;
 use serde::Serialize;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering::{Acquire, Release};
@@ -11,11 +13,18 @@ use tokio::sync::mpsc;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::time::{timeout, Duration};
 
+fn test_settings() -> Settings {
+    let mut config = Config::new();
+    config.set("mpd_port", 0).unwrap();
+    config.set("bind_host", "127.0.0.1").unwrap();
+    Settings::with(config).unwrap()
+}
+
 #[tokio::test]
 async fn it_handles_two_connections() {
     init_logger();
 
-    let mut listener = MpdListener::new("127.0.0.1:0".to_string(), vec![]).await;
+    let mut listener = MpdListener::new(&test_settings(), vec![]).await;
     let address = listener.get_address().expect("Cannot get server address");
 
     debug!("Listening on random port {}", address);
@@ -46,7 +55,7 @@ async fn it_calls_custom_handler() {
     tokio::spawn(async move { handler.run().await });
 
     // Run listener
-    let mut listener = MpdListener::new("127.0.0.1:0".to_string(), vec![pause_tx]).await;
+    let mut listener = MpdListener::new(&test_settings(), vec![pause_tx]).await;
     let address = listener.get_address().expect("Cannot get server address");
     debug!("Listening on random port {}", address);
     tokio::spawn(async move { listener.run().await });
@@ -83,7 +92,7 @@ async fn it_supports_command_lists() {
     tokio::spawn(async move { handler.run().await });
 
     // Run listener
-    let mut listener = MpdListener::new("127.0.0.1:0".to_string(), vec![pause_tx]).await;
+    let mut listener = MpdListener::new(&test_settings(), vec![pause_tx]).await;
     let address = listener.get_address().expect("Cannot get server address");
     debug!("Listening on random port {}", address);
     tokio::spawn(async move { listener.run().await });
