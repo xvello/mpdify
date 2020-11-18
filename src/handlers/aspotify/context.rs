@@ -113,11 +113,27 @@ impl ContextCache {
         }
     }
 
+    pub fn get_latest_key(&self) -> Option<model::Context> {
+        self.key.clone()
+    }
+
     async fn retrieve(&mut self, key: &model::Context) -> Result<PlayContext, Error> {
         let id = key.id.borrow();
         Ok(match key.context_type {
             ItemType::Album => {
-                PlayContext::Album(self.client.albums().get_album(id, None).await?.data)
+                let mut album = self.client.albums().get_album(id, None).await?.data;
+                while album.tracks.total > album.tracks.items.len() {
+                    album.tracks.items.append(
+                        &mut self
+                            .client
+                            .albums()
+                            .get_album_tracks(id, 100, album.tracks.items.len(), None)
+                            .await?
+                            .data
+                            .items,
+                    );
+                }
+                PlayContext::Album(album)
             }
             ItemType::Artist => {
                 let client = self.client.artists();
@@ -126,7 +142,19 @@ impl ContextCache {
                 PlayContext::Artist(artist, tracks)
             }
             ItemType::Playlist => {
-                PlayContext::Playlist(self.client.playlists().get_playlist(id, None).await?.data)
+                let mut playlist = self.client.playlists().get_playlist(id, None).await?.data;
+                while playlist.tracks.total > playlist.tracks.items.len() {
+                    playlist.tracks.items.append(
+                        &mut self
+                            .client
+                            .playlists()
+                            .get_playlists_items(id, 100, playlist.tracks.items.len(), None)
+                            .await?
+                            .data
+                            .items,
+                    );
+                }
+                PlayContext::Playlist(playlist)
             }
             ItemType::Track => {
                 PlayContext::Track(self.client.tracks().get_track(id, None).await?.data)

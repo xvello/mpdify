@@ -5,7 +5,7 @@ use crate::handlers::aspotify::song::build_song_from_playing;
 use crate::handlers::aspotify::status::build_status_result;
 use crate::mpd_protocol::*;
 use crate::util::{IdleBus, Settings};
-use aspotify::{Client, ClientCredentials};
+use aspotify::{Client, ClientCredentials, Play};
 use log::{debug, warn};
 use std::sync::Arc;
 use tokio::macros::support::Future;
@@ -70,10 +70,12 @@ impl SpotifyHandler {
             Command::Next => self.exec(client.player().skip_next(None)).await,
             Command::Previous => self.exec(client.player().skip_prev(None)).await,
             Command::PlayPos(None) => self.exec(client.player().resume(None)).await,
+            Command::PlayPos(Some(pos)) => self.execute_play(pos).await,
             Command::PlayId(None) => self.exec(client.player().resume(None)).await,
             Command::PlayId(Some(0)) => Err(HandlerError::FromString(String::from(
                 "songID must be higher and 0",
             ))),
+            Command::PlayId(Some(pos)) => self.execute_play(pos - 1).await,
             Command::Pause(Some(false)) => self.exec(client.player().resume(None)).await,
             Command::Pause(Some(true)) => self.exec(client.player().pause(None)).await,
             Command::Pause(None) => self.execute_play_pause().await,
@@ -114,6 +116,15 @@ impl SpotifyHandler {
             None => self.client.player().resume(None).await?,
             Some(false) => self.client.player().resume(None).await?,
             Some(true) => self.client.player().pause(None).await?,
+        }
+        Ok(HandlerOutput::Ok)
+    }
+
+    async fn execute_play(&mut self, pos: usize) -> HandlerResult {
+        self.auth_status.check().await?;
+        if let Some(context) = self.context_cache.get_latest_key() {
+            let target = Play::<'_, &[u8]>::Context(context.context_type, context.id.as_str(), pos);
+            self.client.player().play(Some(target), None, None).await?;
         }
         Ok(HandlerOutput::Ok)
     }
