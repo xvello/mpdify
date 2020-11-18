@@ -49,11 +49,7 @@ pub fn build_status_result(
                     PlayingType::Ad(ad) => ad.duration.as_secs_f64(),
                     PlayingType::Unknown(u) => u.duration.as_secs_f64(),
                 }),
-                playlist_info: Some(StatusPlaylistInfo {
-                    playlistlength: context.size(),
-                    song: pos,
-                    songid: pos + 1,
-                }),
+                playlist_info: Some(StatusPlaylistInfo::new(context.size(), pos)),
             }))
         }
     }

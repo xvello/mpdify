@@ -40,6 +40,22 @@ pub struct StatusPlaylistInfo {
     pub playlistlength: usize,
     pub song: usize,
     pub songid: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nextsong: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nextsongid: Option<usize>,
+}
+
+impl StatusPlaylistInfo {
+    pub fn new(length: usize, current_pos: usize) -> Self {
+        StatusPlaylistInfo {
+            playlistlength: length,
+            song: current_pos,
+            songid: current_pos + 1,
+            nextsong: Some(current_pos + 1),
+            nextsongid: Some(current_pos + 2),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Serialize)]
