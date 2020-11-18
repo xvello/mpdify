@@ -70,18 +70,8 @@ async fn handle_command(state: State, input: Split<'_, char>) -> Result {
     let command = Command::from_tokens(input)?;
     match execute_command(state, command).await? {
         HandlerOutput::Data(data) => ok_json(&data),
-        HandlerOutput::Ok => ok_empty(),
-        HandlerOutput::Close => ok_empty(),
+        _ => ok_empty(),
     }
-}
-
-async fn execute_command(state: State, command: Command) -> HandlerResult {
-    let (tx, rx) = oneshot::channel();
-    state
-        .handler
-        .send(HandlerInput { command, resp: tx })
-        .await?;
-    rx.await.unwrap()
 }
 
 async fn handle_auth(req: Request<Body>, state: State) -> Result {
@@ -110,4 +100,13 @@ async fn handle_auth(req: Request<Body>, state: State) -> Result {
             auth_ok()
         }
     }
+}
+
+async fn execute_command(state: State, command: Command) -> HandlerResult {
+    let (tx, rx) = oneshot::channel();
+    state
+        .handler
+        .send(HandlerInput { command, resp: tx })
+        .await?;
+    rx.await.unwrap()
 }

@@ -18,7 +18,7 @@ pub async fn main() -> () {
     let (mut spotify, spotify_tx) = SpotifyHandler::new(&settings, idle_bus.clone()).await;
     let handler_tx = vec![mpris_tx, spotify_tx.clone()];
 
-    let mut mpd = MpdListener::new(&settings, handler_tx.clone()).await;
+    let mut mpd = MpdListener::new(&settings, handler_tx.clone(), idle_bus.clone()).await;
     let mut http = HttpListener::new(&settings, spotify_tx);
 
     let tasks = vec![

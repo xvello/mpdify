@@ -7,6 +7,7 @@ use crate::mpd_protocol::input::InputError::{
 use crate::mpd_protocol::input::{InputError, RelativeFloat};
 use crate::mpd_protocol::Command::{PlaylistId, PlaylistInfo};
 use crate::mpd_protocol::{CommandList, IdleSubsystem, PositionRange};
+use enumset::EnumSet;
 use log::debug;
 use std::borrow::Borrow;
 use std::str::FromStr;
@@ -17,7 +18,8 @@ pub enum Command {
     // Status commands
     ClearError,
     CurrentSong,
-    Idle(Vec<IdleSubsystem>),
+    Idle(EnumSet<IdleSubsystem>),
+    NoIdle,
     Status,
     Stats,
 
@@ -80,15 +82,21 @@ impl Command {
 
                 // Idle
                 "idle" => {
-                    let mut subsytems: Vec<IdleSubsystem> = vec![];
+                    let mut subsytems: EnumSet<IdleSubsystem> = EnumSet::empty();
                     for name in tokens {
                         match serde_yaml::from_str(name) {
-                            Ok(subsytem) => subsytems.push(subsytem),
+                            Ok(subsytem) => {
+                                subsytems.insert(subsytem);
+                            }
                             Err(_) => debug!["Ignoring unsupported idle subsystem {}", name],
                         }
                     }
+                    if subsytems.is_empty() {
+                        subsytems = EnumSet::all();
+                    }
                     Ok(Command::Idle(subsytems))
                 }
+                "noidle" => Ok(Command::NoIdle),
 
                 // Playlist info
                 "playlistinfo" => parse_opt("range".to_string(), tokens.next()).map(PlaylistInfo),
@@ -259,10 +267,10 @@ mod tests {
 
     #[test]
     fn test_idle() {
-        assert_eq!(Command::from_str("idle").unwrap(), Idle(vec![]));
+        assert_eq!(Command::from_str("idle").unwrap(), Idle(EnumSet::all()));
         assert_eq!(
             Command::from_str("idle playlist unknown mixer").unwrap(),
-            Idle(vec![IdleSubsystem::PlayQueue, IdleSubsystem::Mixer])
+            Idle(IdleSubsystem::PlayQueue | IdleSubsystem::Mixer)
         );
     }
 

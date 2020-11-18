@@ -1,7 +1,10 @@
+use crate::listeners::mpd::idle::{watch_idle, IdleClient};
 use crate::listeners::mpd::input::read_command;
 use crate::listeners::mpd::types::{Handlers, ListenerError};
 use crate::mpd_protocol::Command::CommandListStart;
 use crate::mpd_protocol::*;
+use crate::util::IdleMessages;
+use enumset::EnumSet;
 use log::{debug, info, warn};
 use tokio::io::{BufReader, Lines};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
@@ -24,17 +27,18 @@ pub struct Connection {
     command_handlers: Handlers,
     read_lines: Lines<BufReader<OwnedReadHalf>>,
     write: OwnedWriteHalf,
+    idle_client: IdleClient,
 }
 
 impl Connection {
-    pub fn new(socket: TcpStream, handlers: Handlers) -> Self {
+    pub fn new(socket: TcpStream, handlers: Handlers, idle_messages: IdleMessages) -> Self {
         let (read, write) = socket.into_split();
         let read_lines = BufReader::new(read).lines();
-
         Connection {
             command_handlers: handlers,
             read_lines,
             write,
+            idle_client: watch_idle(idle_messages),
         }
     }
 
@@ -70,6 +74,8 @@ impl Connection {
     /// Wrapper around exec_one_command to handle command lists
     async fn exec_command(&mut self, command: Command) -> HandlerResult {
         match command {
+            // Idle is not supported in a command list
+            Command::Idle(subsystems) => self.exec_idle(subsystems).await,
             // Iterate over command lists
             CommandListStart(list) => {
                 for nested in list.get_commands() {
@@ -118,6 +124,30 @@ impl Connection {
         Err(HandlerError::Unsupported)
     }
 
+    async fn exec_idle(&mut self, subsystems: EnumSet<IdleSubsystem>) -> HandlerResult {
+        self.idle_client.start(subsystems).await;
+        tokio::select! {
+            command = read_command(&mut self.read_lines) => {
+                match command {
+                    Ok(Command::NoIdle) => {
+                        self.idle_client.stop().await;
+                        Ok(HandlerOutput::Ok)
+                    }
+                    Ok(Command::Close) => {
+                        Ok(HandlerOutput::Close)
+                    }
+                    _ => {
+                        debug!["Unexpected command {:?} while idle", command];
+                        Ok(HandlerOutput::Close)
+                    }
+                }
+            }
+            idle = self.idle_client.wait() => {
+                Ok(HandlerOutput::Idle(idle))
+            }
+        }
+    }
+
     /// Tries to executes a command by iterating over the registered handlers.
     /// If a handler returns Unsupported, the next one is tried until no more are available.
     async fn output_result(
@@ -147,6 +177,13 @@ impl Connection {
                     }
                 }
             }
+            HandlerOutput::Idle(subsystems) => {
+                for subsystem in subsystems {
+                    self.write.write(b"changed: ").await?;
+                    self.write.write(&to_vec(&subsystem)?).await?;
+                    self.write.write(b"\n").await?;
+                }
+            }
         }
 
         match ok_output {
@@ -158,6 +195,7 @@ impl Connection {
                 self.write.write(b"list_OK\n").await?;
             }
         }
+        self.write.flush().await?;
         Ok(())
     }
 

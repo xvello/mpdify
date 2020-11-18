@@ -1,3 +1,4 @@
+use enumset::EnumSetType;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use thiserror::Error;
@@ -24,7 +25,7 @@ pub enum InputError {
 
 /// Supported subsystems for the idle command
 /// See https://www.musicpd.org/doc/html/protocol.html#querying-mpd-s-status
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(EnumSetType, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum IdleSubsystem {
     #[serde(rename = "playlist")]

@@ -2,7 +2,7 @@ use config::Config;
 use log::{debug, warn};
 use mpdify::listeners::mpd::MpdListener;
 use mpdify::mpd_protocol::{Command, HandlerError, HandlerInput, HandlerOutput, PlaybackStatus};
-use mpdify::util::Settings;
+use mpdify::util::{IdleBus, Settings};
 use serde::Serialize;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering::{Acquire, Release};
@@ -23,12 +23,7 @@ fn test_settings() -> Settings {
 #[tokio::test]
 async fn it_handles_two_connections() {
     init_logger();
-
-    let mut listener = MpdListener::new(&test_settings(), vec![]).await;
-    let address = listener.get_address().expect("Cannot get server address");
-
-    debug!("Listening on random port {}", address);
-    tokio::spawn(async move { listener.run().await });
+    let address = init_listener(vec![]).await;
 
     let mut clients = vec![
         Client::new(address.clone()).await,
@@ -55,10 +50,7 @@ async fn it_calls_custom_handler() {
     tokio::spawn(async move { handler.run().await });
 
     // Run listener
-    let mut listener = MpdListener::new(&test_settings(), vec![pause_tx]).await;
-    let address = listener.get_address().expect("Cannot get server address");
-    debug!("Listening on random port {}", address);
-    tokio::spawn(async move { listener.run().await });
+    let address = init_listener(vec![pause_tx]).await;
 
     let mut client = Client::new(address.clone()).await;
 
@@ -92,10 +84,7 @@ async fn it_supports_command_lists() {
     tokio::spawn(async move { handler.run().await });
 
     // Run listener
-    let mut listener = MpdListener::new(&test_settings(), vec![pause_tx]).await;
-    let address = listener.get_address().expect("Cannot get server address");
-    debug!("Listening on random port {}", address);
-    tokio::spawn(async move { listener.run().await });
+    let address = init_listener(vec![pause_tx]).await;
 
     let mut client = Client::new(address.clone()).await;
     let status = "volume: 20\nstate: pause\n";
@@ -115,6 +104,15 @@ async fn it_supports_command_lists() {
 
 fn init_logger() {
     let _ = pretty_env_logger::try_init();
+}
+
+async fn init_listener(handlers: Vec<Sender<HandlerInput>>) -> String {
+    let bus = IdleBus::new();
+    let mut listener = MpdListener::new(&test_settings(), handlers, bus).await;
+    let address = listener.get_address().expect("Cannot get server address");
+    debug!("Listening on random port {}", address);
+    tokio::spawn(async move { listener.run().await });
+    address
 }
 
 #[derive(Debug, PartialEq, Serialize)]

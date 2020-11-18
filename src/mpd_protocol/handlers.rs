@@ -1,7 +1,8 @@
 use thiserror::Error;
 
 use crate::mpd_protocol::commands::Command;
-use crate::mpd_protocol::OutputData;
+use crate::mpd_protocol::{IdleSubsystem, OutputData};
+use enumset::EnumSet;
 use tokio::sync::oneshot::Sender;
 
 /// Errors caused by command handling
@@ -33,6 +34,8 @@ pub enum HandlerOutput {
     Data(OutputData),
     /// Executed OK, close the connection
     Close,
+    /// Result of the idle command,
+    Idle(EnumSet<IdleSubsystem>),
 }
 
 impl HandlerOutput {

@@ -4,6 +4,8 @@ use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::broadcast;
 
+pub type IdleMessages = broadcast::Receiver<IdleMessage>;
+
 #[derive(Debug, Copy, Clone)]
 pub struct IdleMessage {
     pub what: IdleSubsystem,
@@ -22,7 +24,7 @@ impl IdleBus {
     }
 
     /// Returns a channel for notifications, that can be safely dropped
-    pub fn subscribe(&self) -> broadcast::Receiver<IdleMessage> {
+    pub fn subscribe(&self) -> IdleMessages {
         self.channel.subscribe()
     }
 
