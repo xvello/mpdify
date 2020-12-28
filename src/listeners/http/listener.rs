@@ -13,7 +13,7 @@ use tokio::sync::oneshot;
 #[derive(Clone, Debug)]
 struct State {
     handler: Arc<Sender<HandlerInput>>,
-    auth_path: Arc<String>,
+    auth_path: Arc<str>,
 }
 
 pub struct HttpListener {
@@ -27,7 +27,7 @@ impl HttpListener {
             address: settings.http_address(),
             state: State {
                 handler: Arc::new(handler),
-                auth_path: Arc::new(settings.auth_path()),
+                auth_path: settings.auth_path().into(),
             },
         }
     }
