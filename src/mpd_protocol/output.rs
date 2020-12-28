@@ -3,6 +3,8 @@ use serde::{Serialize, Serializer};
 use std::fmt;
 
 use crate::mpd_protocol::bool_to_int;
+use serde::ser::SerializeStruct;
+use std::time::Duration;
 
 /// Playback status for StatusResponse
 #[derive(Debug, PartialEq, Serialize)]
@@ -25,14 +27,34 @@ pub struct StatusResponse {
     pub repeat: bool,
     #[serde(serialize_with = "bool_to_int")]
     pub single: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub time: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub elapsed: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub duration: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none", flatten)]
+    pub durations: Option<StatusDurations>,
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub playlist_info: Option<StatusPlaylistInfo>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct StatusDurations {
+    pub elapsed: Duration,
+    pub duration: Duration,
+}
+
+impl Serialize for StatusDurations {
+    fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("durations", 3)?;
+        let rendered_time = format![
+            "{}:{}",
+            self.elapsed.as_secs_f64().round(),
+            self.duration.as_secs_f64().round()
+        ];
+        state.serialize_field("time", &rendered_time)?;
+        state.serialize_field("elapsed", &self.elapsed.as_secs_f64())?;
+        state.serialize_field("duration", &self.duration.as_secs_f64())?;
+        state.end()
+    }
 }
 
 #[derive(Debug, PartialEq, Serialize)]

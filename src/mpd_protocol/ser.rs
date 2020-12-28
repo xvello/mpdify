@@ -1,4 +1,6 @@
 use crate::mpd_protocol::HandlerError;
+use lazy_static::lazy_static;
+use regex::Regex;
 use serde::{ser, Serializer};
 
 /// FIXME: should be transparent via a custom Serializer implem
@@ -9,27 +11,35 @@ where
     serializer.serialize_u8(*value as u8)
 }
 
-/// Currently piggy-backing on the yaml serializer, just removing the first `---\n` line
+/// FIXME: write ad-hoc serialization
+/// Currently piggy-backing on the yaml serializer, with highly inefficient string manipulation hacks
 pub fn to_vec<T: ?Sized>(value: &T) -> Result<Vec<u8>, HandlerError>
 where
     T: ser::Serialize,
 {
     let mut yaml =
-        serde_yaml::to_vec(value).map_err(|err| HandlerError::FromString(err.to_string()))?;
+        serde_yaml::to_string(value).map_err(|err| HandlerError::FromString(err.to_string()))?;
     yaml.drain(0..4);
 
     // FIXME: hack to mute empty yaml objects
-    if yaml == b"{}" {
+    if yaml == "{}" {
         return Ok(vec![]);
     }
-    Ok(yaml)
+    // FIXME: hack to unquote the status time field
+    lazy_static! {
+        static ref UNQUOTE_TIME_RE: Regex = Regex::new(r#"(?m)^time: "(\d+:\d+)"$"#).unwrap();
+    }
+    let patched = UNQUOTE_TIME_RE.replace(&yaml, r"time: $1");
+
+    Ok(patched.as_bytes().to_vec())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mpd_protocol::{PlaybackStatus, VolumeResponse};
+    use crate::mpd_protocol::{PlaybackStatus, StatusDurations, VolumeResponse};
     use serde::Serialize;
+    use std::time::Duration;
 
     #[derive(Debug, PartialEq, Serialize)]
     #[serde(rename_all = "PascalCase")]
@@ -77,6 +87,21 @@ mod tests {
             })
             .expect("Serializer error"),
             b"OptionalInt: 20\nStatus: pause\nfloat: 6.66".to_vec()
+        );
+    }
+
+    #[test]
+    fn test_durations() {
+        assert_eq!(
+            std::str::from_utf8(
+                &to_vec(&StatusDurations {
+                    elapsed: Duration::from_millis(4444),
+                    duration: Duration::from_millis(6666),
+                })
+                .expect("Serializer error")
+            )
+            .expect("Not utf8"),
+            "time: 4:7\nelapsed: 4.444\nduration: 6.666"
         );
     }
 }

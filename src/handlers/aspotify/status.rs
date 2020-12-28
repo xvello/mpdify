@@ -1,6 +1,7 @@
 use crate::handlers::aspotify::context::PlayContext;
 use crate::mpd_protocol::{
-    HandlerOutput, HandlerResult, PlaybackStatus, StatusPlaylistInfo, StatusResponse,
+    HandlerOutput, HandlerResult, PlaybackStatus, StatusDurations, StatusPlaylistInfo,
+    StatusResponse,
 };
 use aspotify::{CurrentPlayback, PlayingType, RepeatState};
 use std::borrow::Borrow;
@@ -17,9 +18,7 @@ pub fn build_status_result(
             random: false,
             repeat: false,
             single: false,
-            time: None,
-            elapsed: None,
-            duration: None,
+            durations: None,
             playlist_info: None,
         })),
         Some(data) => {
@@ -41,18 +40,28 @@ pub fn build_status_result(
                 random: data.shuffle_state,
                 repeat: RepeatState::Off.ne(data.repeat_state.borrow()),
                 single: RepeatState::Track.eq(data.repeat_state.borrow()),
-                time: data.currently_playing.progress.map(|d| d.as_secs()),
-                elapsed: data.currently_playing.progress.map(|d| d.as_secs_f64()),
-                duration: data.currently_playing.item.map(|item| match item {
-                    PlayingType::Track(track) => track.duration.as_secs_f64(),
-                    PlayingType::Episode(ep) => ep.duration.as_secs_f64(),
-                    PlayingType::Ad(ad) => ad.duration.as_secs_f64(),
-                    PlayingType::Unknown(u) => u.duration.as_secs_f64(),
-                }),
+                durations: extract_durations(&data),
                 playlist_info: Some(StatusPlaylistInfo::new(context.size(), pos)),
             }))
         }
     }
+}
+
+pub fn extract_durations(data: &CurrentPlayback) -> Option<StatusDurations> {
+    let duration = data.currently_playing.item.as_ref().map(|item| match item {
+        PlayingType::Track(track) => track.duration,
+        PlayingType::Episode(ep) => ep.duration,
+        PlayingType::Ad(ad) => ad.duration,
+        PlayingType::Unknown(u) => u.duration,
+    });
+    let elapsed = data.currently_playing.progress;
+
+    if let Some(elapsed) = elapsed {
+        if let Some(duration) = duration {
+            return Some(StatusDurations { elapsed, duration });
+        }
+    }
+    None
 }
 
 pub fn extract_id(item: &PlayingType) -> Option<String> {
