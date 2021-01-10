@@ -8,8 +8,8 @@ use futures::TryFutureExt;
 use log::{debug, warn};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::stream::StreamExt;
 use tokio::sync::{mpsc, oneshot};
+use tokio_stream::StreamExt;
 use tokio_util::time::delay_queue::DelayQueue;
 
 type GetResult = Result<Arc<CachedPlayback>, HandlerError>;

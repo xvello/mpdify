@@ -4,7 +4,7 @@ use crate::mpd_protocol::*;
 use log::debug;
 use std::borrow::Borrow;
 use std::str::FromStr;
-use tokio::stream::{Stream, StreamExt};
+use tokio_stream::{Stream, StreamExt};
 
 /// Reads the next command from the client
 pub async fn read_command<T>(lines: &mut T) -> Result<Command, ListenerError>
@@ -51,6 +51,7 @@ mod tests {
     use super::*;
     use std::io::Result;
     use tokio::stream;
+    use tokio_stream::Stream;
 
     struct Lines {
         items: Box<dyn Stream<Item = std::io::Result<String>> + Unpin>,

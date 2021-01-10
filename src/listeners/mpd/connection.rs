@@ -6,12 +6,12 @@ use crate::mpd_protocol::*;
 use crate::util::IdleMessages;
 use enumset::EnumSet;
 use log::{debug, info, warn};
-use tokio::io::{BufReader, Lines};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::TcpStream;
-use tokio::prelude::*;
-use tokio::stream::{self, StreamExt};
 use tokio::sync::oneshot;
+use tokio_stream::wrappers::LinesStream;
+use tokio_stream::{self as stream, StreamExt};
 
 pub static MPD_HELLO_STRING: &[u8] = b"OK MPD 0.21.25\n";
 
@@ -25,7 +25,7 @@ enum OkOutput {
 /// run in its own tokio task spawned by MpdListener
 pub struct Connection {
     command_handlers: Handlers,
-    read_lines: Lines<BufReader<OwnedReadHalf>>,
+    read_lines: LinesStream<BufReader<OwnedReadHalf>>,
     write: OwnedWriteHalf,
     idle_client: IdleClient,
 }
@@ -33,7 +33,7 @@ pub struct Connection {
 impl Connection {
     pub fn new(socket: TcpStream, handlers: Handlers, idle_messages: IdleMessages) -> Self {
         let (read, write) = socket.into_split();
-        let read_lines = BufReader::new(read).lines();
+        let read_lines = LinesStream::new(BufReader::new(read).lines());
         Connection {
             command_handlers: handlers,
             read_lines,
@@ -63,7 +63,7 @@ impl Connection {
                     break;
                 }
                 Err(err) => {
-                    warn!("Unrecoverable error, closing connection: {}", err);
+                    warn!("Unrecoverable error, closing connection: {:?}", err);
                     break;
                 }
                 Ok(()) => {}
@@ -204,7 +204,7 @@ impl Connection {
     async fn output_error(&mut self, err: ListenerError) -> Result<(), ListenerError> {
         info!("Cannot handle command: {:?}", err);
         self.write
-            .write(format!["ACK {}\n", err].as_bytes())
+            .write(format!["ACK {:?}\n", err].as_bytes())
             .await?;
         Ok(())
     }

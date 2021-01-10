@@ -36,12 +36,13 @@ pub fn build_playlistinfo_result(
                 if include(pos) {
                     let pos_provider = |_: &str| pos;
                     match &item.item {
-                        PlaylistItemType::Track(track) => {
+                        Some(PlaylistItemType::Track(track)) => {
                             songs.push(build_song_from_track(track, pos_provider))
                         }
-                        PlaylistItemType::Episode(ep) => {
+                        Some(PlaylistItemType::Episode(ep)) => {
                             songs.push(build_song_from_episode(ep, pos_provider))
                         }
+                        None => {}
                     }
                 }
             }

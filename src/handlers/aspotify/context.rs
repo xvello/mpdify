@@ -45,16 +45,17 @@ impl PlayContext {
             PlayContext::Playlist(playlist) => {
                 for (pos, item) in playlist.tracks.items.iter().enumerate() {
                     match &item.item {
-                        model::PlaylistItemType::Episode(ep) => {
+                        Some(model::PlaylistItemType::Episode(ep)) => {
                             if ep.id.eq(id) {
                                 return pos;
                             }
                         }
-                        model::PlaylistItemType::Track(track) => {
+                        Some(model::PlaylistItemType::Track(track)) => {
                             if track.id.is_some() && track.id.as_ref().unwrap().eq(id) {
                                 return pos;
                             }
                         }
+                        None => {}
                     };
                 }
             }
