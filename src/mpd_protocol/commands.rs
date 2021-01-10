@@ -1,11 +1,12 @@
 use crate::mpd_protocol::commands::Command::{
-    ChangeVolume, Pause, PlayId, PlayPos, SeekCur, SetVolume, SpotifyAuth,
+    ChangeVolume, Pause, PlayId, PlayPos, PlaylistId, PlaylistInfo, SeekCur, SeekId, SetVolume,
+    SpotifyAuth,
 };
 use crate::mpd_protocol::input::InputError::{
     InvalidArgument, MissingArgument, MissingCommand, UnknownCommand,
 };
 use crate::mpd_protocol::input::{InputError, RelativeFloat};
-use crate::mpd_protocol::Command::{PlaylistId, PlaylistInfo};
+use crate::mpd_protocol::Command::SeekPos;
 use crate::mpd_protocol::{CommandList, IdleSubsystem, PositionRange};
 use enumset::EnumSet;
 use log::debug;
@@ -35,7 +36,8 @@ pub enum Command {
     PlayPos(Option<usize>), // None means unpause, position >=0
     PlayId(Option<usize>),  // None means unpause, id > 0
     Previous,
-    // Seek, SeekId
+    SeekId(usize, f64),
+    SeekPos(usize, f64),
     SeekCur(RelativeFloat), // Seconds
     Stop,
 
@@ -111,6 +113,14 @@ impl Command {
                     .map(Pause),
                 "previous" => Ok(Command::Previous),
                 "seekcur" => parse_arg("time".to_string(), tokens.next()).map(SeekCur),
+                "seekid" => Ok(SeekId(
+                    parse_arg("songid".to_string(), tokens.next())?,
+                    parse_arg("time".to_string(), tokens.next())?,
+                )),
+                "seekpos" => Ok(SeekPos(
+                    parse_arg("songpos".to_string(), tokens.next())?,
+                    parse_arg("time".to_string(), tokens.next())?,
+                )),
                 "stop" => Ok(Command::Stop),
                 "play" => parse_opt("pos".to_string(), tokens.next()).map(PlayPos),
                 "playid" => parse_opt("songid".to_string(), tokens.next())

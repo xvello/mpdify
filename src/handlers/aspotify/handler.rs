@@ -4,11 +4,13 @@ use crate::handlers::aspotify::playback_watcher::PlaybackClient;
 use crate::handlers::aspotify::playlist::build_playlistinfo_result;
 use crate::handlers::aspotify::song::build_song_from_playing;
 use crate::handlers::aspotify::status::build_status_result;
+use crate::handlers::aspotify::time::compute_seek;
 use crate::mpd_protocol::*;
 use crate::util::{IdleBus, Settings};
 use aspotify::{Client, ClientCredentials, Play};
 use log::{debug, warn};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::macros::support::Future;
 use tokio::sync::mpsc;
 
@@ -83,6 +85,12 @@ impl SpotifyHandler {
             Command::Pause(Some(true)) => self.exec(client.player().pause(None)).await,
             Command::Pause(None) => self.execute_play_pause().await,
             Command::Stop => self.exec(client.player().pause(None)).await,
+            Command::SeekCur(time) => self.execute_seek_cur(time).await,
+            Command::SeekPos(pos, time) => self.execute_seek(pos, time).await,
+            Command::SeekId(0, _) => Err(HandlerError::FromString(String::from(
+                "songID must be higher and 0",
+            ))),
+            Command::SeekId(pos, time) => self.execute_seek(pos - 1, time).await,
 
             // Volume
             Command::GetVolume => self.execute_get_volume().await,
@@ -130,6 +138,34 @@ impl SpotifyHandler {
         if let Some(context) = self.context_cache.get_latest_key() {
             let target = Play::<'_, &[u8]>::Context(context.context_type, context.id.as_str(), pos);
             self.client.player().play(Some(target), None, None).await?;
+        }
+        self.playback.expect_changes().await;
+        Ok(HandlerOutput::Ok)
+    }
+
+    async fn execute_seek_cur(&mut self, time: RelativeFloat) -> HandlerResult {
+        self.auth_status.check().await?;
+        let elapsed = self.playback.get().await?.get_elapsed();
+        self.client
+            .player()
+            .seek(compute_seek(elapsed, time), None)
+            .await?;
+        self.playback.expect_changes().await;
+        Ok(HandlerOutput::Ok)
+    }
+
+    async fn execute_seek(&mut self, pos: usize, time: f64) -> HandlerResult {
+        self.auth_status.check().await?;
+        let playback = self.playback.get().await?;
+        match playback.get_context() {
+            None => return Err(HandlerError::FromString("empty playlist".into())),
+            Some(context) => {
+                let play = Play::<'_, &[u8]>::Context(context.context_type, &context.id, pos);
+                self.client
+                    .player()
+                    .play(Some(play), Some(Duration::from_secs_f64(time)), None)
+                    .await?;
+            }
         }
         self.playback.expect_changes().await;
         Ok(HandlerOutput::Ok)
