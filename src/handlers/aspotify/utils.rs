@@ -1,4 +1,5 @@
 use crate::mpd_protocol::RelativeFloat;
+use aspotify::RepeatState;
 use std::time::Duration;
 
 pub fn compute_seek(current: Option<Duration>, seek: RelativeFloat) -> Duration {
@@ -17,10 +18,27 @@ pub fn compute_seek(current: Option<Duration>, seek: RelativeFloat) -> Duration 
     }
 }
 
+pub fn compute_repeat(
+    current: RepeatState,
+    repeat: Option<bool>,
+    single: Option<bool>,
+) -> RepeatState {
+    let desired_repeat = repeat.unwrap_or(current != RepeatState::Off);
+    let desired_single = single.unwrap_or(current == RepeatState::Track);
+    match desired_repeat {
+        false => RepeatState::Off,
+        true => match desired_single {
+            false => RepeatState::Context,
+            true => RepeatState::Track,
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::handlers::aspotify::time::compute_seek;
+    use crate::handlers::aspotify::time::{compute_repeat, compute_seek};
     use crate::mpd_protocol::RelativeFloat::{Absolute, Relative};
+    use aspotify::RepeatState::{Context, Off, Track};
     use std::time::Duration;
 
     #[test]
@@ -59,5 +77,20 @@ mod tests {
             0,
             compute_seek(Some(Duration::from_secs(9)), Relative(-50.)).as_secs()
         )
+    }
+
+    #[test]
+    fn it_computes_desired_repeat() {
+        let cases = vec![
+            (Off, Some(true), None, Context),
+            (Off, Some(true), Some(true), Track),
+            (Track, Some(false), Some(true), Off),
+            (Off, Some(false), Some(true), Off),
+            (Track, None, Some(true), Track),
+            (Track, None, Some(false), Context),
+        ];
+        for (current, repeat, single, expected) in cases {
+            assert_eq!(expected, compute_repeat(current, repeat, single));
+        }
     }
 }

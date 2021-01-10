@@ -6,6 +6,6 @@ mod playback_watcher;
 mod playlist;
 mod song;
 mod status;
-mod time;
+mod utils;
 
 pub use handler::SpotifyHandler;
