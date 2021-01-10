@@ -4,7 +4,7 @@ use crate::handlers::aspotify::playback_watcher::PlaybackClient;
 use crate::handlers::aspotify::playlist::build_playlistinfo_result;
 use crate::handlers::aspotify::song::build_song_from_playing;
 use crate::handlers::aspotify::status::build_status_result;
-use crate::handlers::aspotify::time::compute_seek;
+use crate::handlers::aspotify::utils::{compute_repeat, compute_seek};
 use crate::mpd_protocol::*;
 use crate::util::{IdleBus, Settings};
 use aspotify::{Client, ClientCredentials, Play};
@@ -70,6 +70,11 @@ impl SpotifyHandler {
             // Playback status
             Command::Status => self.execute_status().await,
             Command::CurrentSong => self.execute_currentsong().await,
+
+            // Playback options
+            Command::Random(state) => self.exec(client.player().set_shuffle(state, None)).await,
+            Command::Repeat(state) => self.execute_repeat(Some(state), None).await,
+            Command::RepeatSingle(state) => self.execute_repeat(None, Some(state)).await,
 
             // Playback control
             Command::Next => self.exec(client.player().skip_next(None)).await,
@@ -176,6 +181,24 @@ impl SpotifyHandler {
         let playback = self.playback.get().await?;
         let context = self.context_cache.get(playback.get_context()).await?;
         build_status_result(playback, context)
+    }
+
+    async fn execute_repeat(
+        &mut self,
+        repeat: Option<bool>,
+        single: Option<bool>,
+    ) -> HandlerResult {
+        self.auth_status.check().await?;
+        let playback = self.playback.get().await?;
+        if let Some(current) = playback.data.as_ref().map(|d| d.repeat_state) {
+            self.client
+                .player()
+                .set_repeat(compute_repeat(current, repeat, single), None)
+                .await?;
+            self.playback.expect_changes().await;
+        }
+
+        Ok(HandlerOutput::Ok)
     }
 
     async fn execute_currentsong(&mut self) -> HandlerResult {

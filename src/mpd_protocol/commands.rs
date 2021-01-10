@@ -6,7 +6,7 @@ use crate::mpd_protocol::input::InputError::{
     InvalidArgument, MissingArgument, MissingCommand, UnknownCommand,
 };
 use crate::mpd_protocol::input::{InputError, RelativeFloat};
-use crate::mpd_protocol::Command::SeekPos;
+use crate::mpd_protocol::Command::{Random, Repeat, RepeatSingle, SeekPos};
 use crate::mpd_protocol::{CommandList, IdleSubsystem, PositionRange};
 use enumset::EnumSet;
 use log::debug;
@@ -29,6 +29,9 @@ pub enum Command {
     PlaylistId(Option<usize>),
 
     // Playback options
+    Random(bool),
+    Repeat(bool),
+    RepeatSingle(bool),
 
     // Playback control
     Next,
@@ -106,6 +109,17 @@ impl Command {
                     .and_then(check_song_id)
                     .map(PlaylistId),
 
+                // Playback options
+                "random" => parse_arg("state".to_string(), tokens.next())
+                    .map(int_to_bool)
+                    .map(Random),
+                "repeat" => parse_arg("state".to_string(), tokens.next())
+                    .map(int_to_bool)
+                    .map(Repeat),
+                "single" => parse_arg("state".to_string(), tokens.next())
+                    .map(int_to_bool)
+                    .map(RepeatSingle),
+
                 // Playback control
                 "next" => Ok(Command::Next),
                 "pause" => parse_opt("paused".to_string(), tokens.next())
@@ -173,6 +187,10 @@ fn parse_opt<T: FromStr>(name: String, token: Option<&str>) -> Result<Option<T>,
                 .map_err(|_e| InvalidArgument(name, v.to_string()))
         }
     }
+}
+
+fn int_to_bool(value: u8) -> bool {
+    value > 0
 }
 
 /// Ensures song IDs are strictly higher than zero (invalid value)
