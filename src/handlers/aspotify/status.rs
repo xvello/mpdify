@@ -1,4 +1,5 @@
 use crate::handlers::aspotify::context::PlayContext;
+use crate::handlers::aspotify::playback::CachedPlayback;
 use crate::mpd_protocol::{
     HandlerOutput, HandlerResult, PlaybackStatus, StatusDurations, StatusPlaylistInfo,
     StatusResponse,
@@ -6,12 +7,10 @@ use crate::mpd_protocol::{
 use aspotify::{CurrentPlayback, PlayingType, RepeatState};
 use std::borrow::Borrow;
 use std::sync::Arc;
+use std::time::Duration;
 
-pub fn build_status_result(
-    input: Option<CurrentPlayback>,
-    context: Arc<PlayContext>,
-) -> HandlerResult {
-    match input {
+pub fn build_status_result(input: Arc<CachedPlayback>, context: Arc<PlayContext>) -> HandlerResult {
+    match &input.data {
         None => Ok(HandlerOutput::from(StatusResponse {
             volume: None,
             state: PlaybackStatus::Stop,
@@ -40,22 +39,23 @@ pub fn build_status_result(
                 random: data.shuffle_state,
                 repeat: RepeatState::Off.ne(data.repeat_state.borrow()),
                 single: RepeatState::Track.eq(data.repeat_state.borrow()),
-                durations: extract_durations(&data),
+                durations: extract_durations(&data, input.get_elapsed()),
                 playlist_info: Some(StatusPlaylistInfo::new(context.size(), pos)),
             }))
         }
     }
 }
 
-pub fn extract_durations(data: &CurrentPlayback) -> Option<StatusDurations> {
+pub fn extract_durations(
+    data: &CurrentPlayback,
+    elapsed: Option<Duration>,
+) -> Option<StatusDurations> {
     let duration = data.currently_playing.item.as_ref().map(|item| match item {
         PlayingType::Track(track) => track.duration,
         PlayingType::Episode(ep) => ep.duration,
         PlayingType::Ad(ad) => ad.duration,
         PlayingType::Unknown(u) => u.duration,
     });
-    let elapsed = data.currently_playing.progress;
-
     if let Some(elapsed) = elapsed {
         if let Some(duration) = duration {
             return Some(StatusDurations { elapsed, duration });

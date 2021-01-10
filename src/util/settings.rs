@@ -8,6 +8,8 @@ pub struct Settings {
     http_port: u16,
     http_host: String,
     bind_address: IpAddr,
+    pub playback_pool_freq_base_seconds: u64,
+    pub playback_pool_freq_fast_seconds: u64,
 }
 
 impl Settings {
@@ -17,6 +19,8 @@ impl Settings {
         s.set_default("http_port", 6601)?;
         s.set_default("http_host", "localhost")?;
         s.set_default("bind_address", "0.0.0.0")?;
+        s.set_default("playback_pool_freq_base_seconds", "15")?;
+        s.set_default("playback_pool_freq_fast_seconds", "1")?;
         Ok(s)
     }
 

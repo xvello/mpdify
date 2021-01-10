@@ -1,5 +1,6 @@
 use crate::handlers::aspotify::auth::AuthStatus;
 use crate::handlers::aspotify::context::ContextCache;
+use crate::handlers::aspotify::playback_watcher::PlaybackClient;
 use crate::handlers::aspotify::playlist::build_playlistinfo_result;
 use crate::handlers::aspotify::song::build_song_from_playing;
 use crate::handlers::aspotify::status::build_status_result;
@@ -16,6 +17,7 @@ pub struct SpotifyHandler {
     client: Arc<Client>,
     context_cache: ContextCache,
     auth_status: AuthStatus,
+    playback: PlaybackClient,
 }
 
 // Alias for aspotify simple return value
@@ -28,15 +30,16 @@ impl SpotifyHandler {
     ) -> (Self, mpsc::Sender<HandlerInput>) {
         let (command_tx, command_rx) = mpsc::channel(16);
         let client = Arc::new(Client::new(ClientCredentials::from_env().unwrap()));
-        let context_cache = ContextCache::new(client.clone(), idle_bus);
+        let context_cache = ContextCache::new(client.clone(), idle_bus.clone());
         let auth_status = AuthStatus::new(settings, client.clone()).await;
-
+        let playback = PlaybackClient::new(settings, client.clone(), idle_bus);
         (
             SpotifyHandler {
                 command_rx,
                 client,
                 auth_status,
                 context_cache,
+                playback,
             },
             command_tx,
         )
@@ -106,17 +109,19 @@ impl SpotifyHandler {
     async fn exec(&mut self, f: impl Future<Output = AResult>) -> HandlerResult {
         self.auth_status.check().await?;
         f.await?;
+        self.playback.expect_changes().await;
         Ok(HandlerOutput::Ok)
     }
 
     async fn execute_play_pause(&mut self) -> HandlerResult {
         self.auth_status.check().await?;
-        let playing = self.client.player().get_playing_track(None).await?.data;
-        match playing.map(|p| p.is_playing) {
+        let playback = self.playback.get().await?;
+        match playback.get_playing().map(|p| p.is_playing) {
             None => self.client.player().resume(None).await?,
             Some(false) => self.client.player().resume(None).await?,
             Some(true) => self.client.player().pause(None).await?,
         }
+        self.playback.expect_changes().await;
         Ok(HandlerOutput::Ok)
     }
 
@@ -126,40 +131,41 @@ impl SpotifyHandler {
             let target = Play::<'_, &[u8]>::Context(context.context_type, context.id.as_str(), pos);
             self.client.player().play(Some(target), None, None).await?;
         }
+        self.playback.expect_changes().await;
         Ok(HandlerOutput::Ok)
     }
 
     async fn execute_status(&mut self) -> HandlerResult {
         self.auth_status.check().await?;
-        let playback = self.client.player().get_playback(None).await?.data;
-        let context_key = playback
-            .as_ref()
-            .map(|p| p.currently_playing.context.as_ref())
-            .flatten();
-        let context = self.context_cache.get(context_key).await?;
+        let playback = self.playback.get().await?;
+        let context = self.context_cache.get(playback.get_context()).await?;
         build_status_result(playback, context)
     }
 
     async fn execute_currentsong(&mut self) -> HandlerResult {
         self.auth_status.check().await?;
-        let playing = self.client.player().get_playing_track(None).await?.data;
-        let context_key = playing.as_ref().map(|p| p.context.as_ref()).flatten();
-        let context = self.context_cache.get(context_key).await?;
-        build_song_from_playing(playing, context)
+        let playback = self.playback.get().await?;
+        let context = self.context_cache.get(playback.get_context()).await?;
+        build_song_from_playing(playback.get_playing(), context)
     }
 
     async fn execute_playlist_info(&mut self, range: Option<PositionRange>) -> HandlerResult {
         self.auth_status.check().await?;
-        let playing = self.client.player().get_playing_track(None).await?.data;
-        let context_key = playing.as_ref().map(|p| p.context.as_ref()).flatten();
-        let context = self.context_cache.get(context_key).await?;
-        build_playlistinfo_result(playing, context, range)
+        let playback = self.playback.get().await?;
+        let context = self.context_cache.get(playback.get_context()).await?;
+        build_playlistinfo_result(playback.get_playing(), context, range)
     }
 
     async fn get_volume(&mut self) -> Result<Option<u32>, HandlerError> {
         self.auth_status.check().await?;
-        let playback = self.client.player().get_playback(None).await?.data;
-        Ok(playback.map(|p| p.device.volume_percent).flatten())
+        Ok(self
+            .playback
+            .get()
+            .await?
+            .data
+            .as_ref()
+            .map(|d| d.device.volume_percent)
+            .flatten())
     }
 
     async fn execute_get_volume(&mut self) -> HandlerResult {
@@ -173,6 +179,7 @@ impl SpotifyHandler {
             let target = 100.min(0.max(current as i32 + delta));
             self.client.player().set_volume(target, None).await?
         }
+        self.playback.expect_changes().await;
         Ok(HandlerOutput::Ok)
     }
 }

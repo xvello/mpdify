@@ -28,6 +28,11 @@ impl IdleBus {
         self.channel.subscribe()
     }
 
+    /// Returns true if at least one client is subscribed to updates
+    pub fn has_subscribers(&self) -> bool {
+        self.channel.receiver_count() > 0
+    }
+
     /// Send a notification with the current timestamp,
     /// ignores channel errors caused by no subscriber
     pub fn notify(&self, system: IdleSubsystem) {

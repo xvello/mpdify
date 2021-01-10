@@ -8,7 +8,7 @@ use aspotify::{CurrentlyPlaying, PlaylistItemType};
 use std::sync::Arc;
 
 pub fn build_playlistinfo_result(
-    playing: Option<CurrentlyPlaying>,
+    playing: Option<&CurrentlyPlaying>,
     context: Arc<PlayContext>,
     range: Option<PositionRange>,
 ) -> HandlerResult {

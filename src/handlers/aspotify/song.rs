@@ -9,19 +9,23 @@ use std::borrow::Borrow;
 use std::sync::Arc;
 
 pub fn build_song_from_playing(
-    input: Option<CurrentlyPlaying>,
+    input: Option<&CurrentlyPlaying>,
     context: Arc<PlayContext>,
 ) -> HandlerResult {
-    input.map_or(Ok(HandlerOutput::Ok), |playing| {
-        playing.item.map_or(Ok(HandlerOutput::Ok), |item| {
-            let pos_provider = |id: &str| context.position_for_id(id);
-            Ok(HandlerOutput::from(match item.borrow() {
-                PlayingType::Episode(e) => build_song_from_episode(e, pos_provider),
-                PlayingType::Track(t) => build_song_from_track(t, pos_provider),
-                PlayingType::Ad(t) => build_song_from_track(t, pos_provider),
-                PlayingType::Unknown(t) => build_song_from_track(t, pos_provider),
-            }))
-        })
+    Ok(match input {
+        None => HandlerOutput::Ok,
+        Some(input) => match input.item.as_ref() {
+            None => HandlerOutput::Ok,
+            Some(item) => {
+                let pos_provider = |id: &str| context.position_for_id(id);
+                HandlerOutput::from(match item {
+                    PlayingType::Episode(e) => build_song_from_episode(e, pos_provider),
+                    PlayingType::Track(t) => build_song_from_track(t, pos_provider),
+                    PlayingType::Ad(t) => build_song_from_track(t, pos_provider),
+                    PlayingType::Unknown(t) => build_song_from_track(t, pos_provider),
+                })
+            }
+        },
     })
 }
 pub fn build_song_from_track(track: &Track, pos_provider: impl Fn(&str) -> usize) -> SongResponse {
