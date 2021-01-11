@@ -9,8 +9,6 @@ jobs:
     name: Check
     runs-on: ubuntu-latest
     steps:
-      - name: Install system deps
-        run: sudo apt-get install libdbus-1-dev pkg-config
       - name: Install rust
         uses: actions-rs/toolchain@v1
         with:
