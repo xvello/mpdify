@@ -1,7 +1,6 @@
-use crate::mpd_protocol::{HandlerError, HandlerInput, InputError};
+use crate::mpd_protocol::{HandlerError, InputError};
 use std::fmt::Debug;
 use thiserror::Error;
-use tokio::sync::mpsc::Sender;
 
 #[derive(Error, Debug)]
 pub enum ListenerError {
@@ -17,5 +16,3 @@ pub enum ListenerError {
     #[error(transparent)]
     HandlerError(#[from] HandlerError),
 }
-
-pub type Handlers = Vec<Sender<HandlerInput>>;

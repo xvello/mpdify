@@ -1,5 +1,5 @@
+use crate::handlers::client::HandlerClient;
 use crate::listeners::mpd::connection::Connection;
-use crate::listeners::mpd::types::Handlers;
 use crate::mpd_protocol::*;
 use crate::util::{IdleBus, Settings};
 use log::{debug, warn};
@@ -9,23 +9,27 @@ use tokio::sync::mpsc;
 
 pub struct MpdListener {
     tcp_listener: TcpListener,
-    command_handlers: Handlers,
+    handler: HandlerClient,
     idle_bus: Arc<IdleBus>,
 }
 
 /// Listens to incoming connections and spawns one Connection task by client
 impl MpdListener {
-    pub async fn new(settings: &Settings, mut handlers: Handlers, idle_bus: Arc<IdleBus>) -> Self {
+    pub async fn new(
+        settings: &Settings,
+        mut handler: HandlerClient,
+        idle_bus: Arc<IdleBus>,
+    ) -> Self {
         // Run basic fallback handler
         let (tx, rx) = mpsc::channel(8);
-        handlers.push(tx);
+        handler.add(tx);
         tokio::spawn(async move {
             BasicCommandHandler::run(rx).await;
         });
 
         MpdListener {
             tcp_listener: TcpListener::bind(settings.mpd_address()).await.unwrap(),
-            command_handlers: handlers,
+            handler,
             idle_bus,
         }
     }
@@ -38,7 +42,7 @@ impl MpdListener {
         debug!["Listening on {}", self.get_address().unwrap_or_default()];
         loop {
             let (socket, _) = self.tcp_listener.accept().await.unwrap();
-            let copied_handlers = self.command_handlers.to_owned();
+            let copied_handlers = self.handler.to_owned();
             let idle_messages = self.idle_bus.subscribe();
             tokio::spawn(async move {
                 Connection::new(socket, copied_handlers, idle_messages)

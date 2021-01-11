@@ -50,8 +50,7 @@ where
 mod tests {
     use super::*;
     use std::io::Result;
-    use tokio::stream;
-    use tokio_stream::Stream;
+    use tokio_stream::{self as stream, Stream};
 
     struct Lines {
         items: Box<dyn Stream<Item = std::io::Result<String>> + Unpin>,

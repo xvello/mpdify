@@ -1,5 +1,6 @@
 use config::Config;
 use log::{debug, warn};
+use mpdify::handlers::client::HandlerClient;
 use mpdify::listeners::mpd::MpdListener;
 use mpdify::mpd_protocol::{Command, HandlerError, HandlerInput, HandlerOutput, PlaybackStatus};
 use mpdify::util::{IdleBus, Settings};
@@ -108,6 +109,7 @@ fn init_logger() {
 
 async fn init_listener(handlers: Vec<Sender<HandlerInput>>) -> String {
     let bus = IdleBus::new();
+    let handlers = HandlerClient::new(handlers);
     let mut listener = MpdListener::new(&test_settings(), handlers, bus).await;
     let address = listener.get_address().expect("Cannot get server address");
     debug!("Listening on random port {}", address);

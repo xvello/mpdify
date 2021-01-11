@@ -1,6 +1,7 @@
+use crate::handlers::client::HandlerClient;
 use crate::listeners::mpd::idle::{watch_idle, IdleClient};
 use crate::listeners::mpd::input::read_command;
-use crate::listeners::mpd::types::{Handlers, ListenerError};
+use crate::listeners::mpd::types::ListenerError;
 use crate::mpd_protocol::Command::CommandListStart;
 use crate::mpd_protocol::*;
 use crate::util::IdleMessages;
@@ -9,7 +10,6 @@ use log::{debug, info, warn};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::TcpStream;
-use tokio::sync::oneshot;
 use tokio_stream::wrappers::LinesStream;
 use tokio_stream::{self as stream, StreamExt};
 
@@ -24,18 +24,18 @@ enum OkOutput {
 /// Handles one individual connections and its command flow,
 /// run in its own tokio task spawned by MpdListener
 pub struct Connection {
-    command_handlers: Handlers,
+    handler: HandlerClient,
     read_lines: LinesStream<BufReader<OwnedReadHalf>>,
     write: OwnedWriteHalf,
     idle_client: IdleClient,
 }
 
 impl Connection {
-    pub fn new(socket: TcpStream, handlers: Handlers, idle_messages: IdleMessages) -> Self {
+    pub fn new(socket: TcpStream, handler: HandlerClient, idle_messages: IdleMessages) -> Self {
         let (read, write) = socket.into_split();
         let read_lines = LinesStream::new(BufReader::new(read).lines());
         Connection {
-            command_handlers: handlers,
+            handler,
             read_lines,
             write,
             idle_client: watch_idle(idle_messages),
@@ -79,7 +79,7 @@ impl Connection {
             // Iterate over command lists
             CommandListStart(list) => {
                 for nested in list.get_commands() {
-                    match self.exec_one_command(nested).await {
+                    match self.handler.exec(nested).await {
                         Ok(output) => {
                             let ok = if list.is_verbose() {
                                 self.output_result(Ok(output), OkOutput::ListOk).await
@@ -96,32 +96,8 @@ impl Connection {
                 Ok(HandlerOutput::Ok)
             }
             // Pass single commands
-            _ => self.exec_one_command(command).await,
+            _ => self.handler.exec(command).await,
         }
-    }
-    /// Tries to executes a command by iterating over the registered handlers.
-    /// If a handler returns Unsupported, the next one is tried until no more are available.
-    async fn exec_one_command(&mut self, command: Command) -> HandlerResult {
-        for handler in self.command_handlers.iter_mut() {
-            let (tx, rx) = oneshot::channel();
-            handler
-                .send(HandlerInput {
-                    command: command.clone(),
-                    resp: tx,
-                })
-                .await?;
-
-            let result = rx.await.unwrap();
-            match result {
-                // Continue in the loop and try next handler
-                Err(HandlerError::Unsupported) => (),
-                // Otherwise, return result or error
-                _ => return result,
-            }
-        }
-        // All handlers returned Unsupported
-        debug!("No handler available to handle {:?}", command);
-        Err(HandlerError::Unsupported)
     }
 
     async fn exec_idle(&mut self, subsystems: EnumSet<IdleSubsystem>) -> HandlerResult {

@@ -1,5 +1,6 @@
+use crate::handlers::client::HandlerClient;
 use crate::listeners::http::responses::*;
-use crate::mpd_protocol::{Command, HandlerError, HandlerInput, HandlerOutput, HandlerResult};
+use crate::mpd_protocol::{Command, HandlerError, HandlerOutput};
 use crate::util::Settings;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Server};
@@ -7,12 +8,10 @@ use log::debug;
 use std::net::SocketAddr;
 use std::str::Split;
 use std::sync::Arc;
-use tokio::sync::mpsc::Sender;
-use tokio::sync::oneshot;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 struct State {
-    handler: Arc<Sender<HandlerInput>>,
+    handler: Arc<HandlerClient>,
     auth_path: Arc<str>,
 }
 
@@ -22,7 +21,7 @@ pub struct HttpListener {
 }
 
 impl HttpListener {
-    pub fn new(settings: &Settings, handler: Sender<HandlerInput>) -> Self {
+    pub fn new(settings: &Settings, handler: HandlerClient) -> Self {
         Self {
             address: settings.http_address(),
             state: State {
@@ -68,7 +67,7 @@ async fn handle_request(req: Request<Body>, state: State) -> Result {
 
 async fn handle_command(state: State, input: Split<'_, char>) -> Result {
     let command = Command::from_tokens(input)?;
-    match execute_command(state, command).await? {
+    match state.handler.exec(command).await? {
         HandlerOutput::Data(data) => ok_json(&data),
         _ => ok_empty(),
     }
@@ -77,7 +76,7 @@ async fn handle_command(state: State, input: Split<'_, char>) -> Result {
 async fn handle_auth(req: Request<Body>, state: State) -> Result {
     match req.uri().query() {
         None => {
-            let response = execute_command(state, Command::SpotifyAuth(None)).await;
+            let response = state.handler.exec(Command::SpotifyAuth(None)).await;
             // Redirect user if we need to authenticate
             if let Err(HandlerError::AuthNeeded(destination)) = &response {
                 return auth_redirect(destination);
@@ -96,17 +95,8 @@ async fn handle_auth(req: Request<Body>, state: State) -> Result {
                 req.uri().query().unwrap_or_default()
             ];
             debug!["{}", url];
-            execute_command(state, Command::SpotifyAuth(Some(url))).await?;
+            state.handler.exec(Command::SpotifyAuth(Some(url))).await?;
             auth_ok()
         }
     }
-}
-
-async fn execute_command(state: State, command: Command) -> HandlerResult {
-    let (tx, rx) = oneshot::channel();
-    state
-        .handler
-        .send(HandlerInput { command, resp: tx })
-        .await?;
-    rx.await.unwrap()
 }
