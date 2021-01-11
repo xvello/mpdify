@@ -1,5 +1,5 @@
 
-# mpdify &nbsp; &nbsp; ![CI status](https://github.com/xvello/mpdify/workflows/Continuous%20integration/badge.svg?branch=master)
+# mpdify &nbsp; &nbsp; [![CI status](https://github.com/xvello/mpdify/workflows/Continuous%20integration/badge.svg?branch=master)](https://github.com/xvello/mpdify/actions)
 
 An experimental frontend to the Spotify public API, exposing a virtual [MPD server](https://www.musicpd.org/doc/html/protocol.html) and HTTP endpoints.
 
