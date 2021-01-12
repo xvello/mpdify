@@ -3,7 +3,7 @@ use crate::handlers::aspotify::context::ContextCache;
 use crate::handlers::aspotify::playback_watcher::PlaybackClient;
 use crate::handlers::aspotify::playlist::build_playlistinfo_result;
 use crate::handlers::aspotify::song::build_song_from_playing;
-use crate::handlers::aspotify::status::build_status_result;
+use crate::handlers::aspotify::status::{build_outputs_result, build_status_result};
 use crate::handlers::aspotify::utils::{compute_repeat, compute_seek};
 use crate::mpd_protocol::*;
 use crate::util::{IdleBus, Settings};
@@ -70,6 +70,8 @@ impl SpotifyHandler {
             // Playback status
             Command::Status => self.execute_status().await,
             Command::CurrentSong => self.execute_currentsong().await,
+            Command::Outputs => self.execute_outputs().await,
+            Command::EnableOutput(pos) => self.execute_enable_output(pos).await,
 
             // Playback options
             Command::Random(state) => self.exec(client.player().set_shuffle(state, None)).await,
@@ -181,6 +183,24 @@ impl SpotifyHandler {
         let playback = self.playback.get().await?;
         let context = self.context_cache.get(playback.get_context()).await?;
         build_status_result(playback, context)
+    }
+
+    async fn execute_outputs(&mut self) -> HandlerResult {
+        self.auth_status.check().await?;
+        let devices = self.client.player().get_devices().await?;
+        build_outputs_result(devices.data)
+    }
+
+    async fn execute_enable_output(&mut self, pos: usize) -> HandlerResult {
+        self.auth_status.check().await?;
+        let devices = self.client.player().get_devices().await?;
+        if let Some(Some(dest_id)) = devices.data.get(pos).map(|d| d.id.clone()) {
+            self.client.player().transfer(&dest_id, true).await?;
+            self.playback.expect_changes().await;
+            Ok(HandlerOutput::Ok)
+        } else {
+            Err(HandlerError::FromString(format!("unknown output: {}", pos)))
+        }
     }
 
     async fn execute_repeat(

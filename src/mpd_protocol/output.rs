@@ -106,6 +106,20 @@ pub struct SongResponse {
     pub disc: Option<usize>,
 }
 
+/// Response for the outputs command
+#[derive(Debug, PartialEq, Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct OutputsResponse {
+    #[serde(rename = "outputid")]
+    pub ordinal: usize,
+    #[serde(rename = "outputname")]
+    pub name: String,
+    #[serde(rename = "outputenabled", serialize_with = "bool_to_int")]
+    pub enabled: bool,
+    #[serde(rename = "plugin")]
+    pub plugin: String,
+}
+
 /// Holder for HandlerOutput::Serialize
 pub struct OutputData {
     pub data: Vec<Box<dyn erased_serde::Serialize + Send>>,

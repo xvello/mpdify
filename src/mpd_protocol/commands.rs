@@ -6,7 +6,7 @@ use crate::mpd_protocol::input::InputError::{
     InvalidArgument, MissingArgument, MissingCommand, UnknownCommand,
 };
 use crate::mpd_protocol::input::{InputError, RelativeFloat};
-use crate::mpd_protocol::Command::{Random, Repeat, RepeatSingle, SeekPos};
+use crate::mpd_protocol::Command::{EnableOutput, Random, Repeat, RepeatSingle, SeekPos};
 use crate::mpd_protocol::{CommandList, IdleSubsystem, PositionRange};
 use enumset::EnumSet;
 use log::debug;
@@ -24,6 +24,10 @@ pub enum Command {
     Status,
     Stats,
     Commands,
+
+    // Outputs
+    Outputs,
+    EnableOutput(usize),
 
     // Playlist info
     PlaylistInfo(Option<PositionRange>), // End is exclusive
@@ -103,6 +107,9 @@ impl Command {
             "command_list_ok_begin",
             "command_list_end",
             "auth",
+            "outputs",
+            "toggleoutput",
+            "enableoutput",
         ]
     }
 
@@ -120,6 +127,12 @@ impl Command {
                 "status" => Ok(Command::Status),
                 "stats" => Ok(Command::Stats),
                 "commands" => Ok(Command::Commands),
+
+                // Outputs
+                "outputs" => Ok(Command::Outputs),
+                "toggleoutput" | "enableoutput" => {
+                    parse_arg("id".to_string(), tokens.next()).map(EnableOutput)
+                }
 
                 // Idle
                 "idle" => {
@@ -197,7 +210,7 @@ impl Command {
                 // Unsupported commands we just map to a ping
                 "channels" | "subscribe" | "unsubscribe" | "readmessages" | "sendmessage"
                 | "consume" | "crossfade" | "mixrampdb" | "mixrampdelay" | "replay_gain_mode"
-                | "replay_gain_status" | "outputs" => Ok(Command::Ping),
+                | "replay_gain_status" | "disableoutput" => Ok(Command::Ping),
 
                 // Unknown command
                 _ => Err(UnknownCommand(command.to_string())),

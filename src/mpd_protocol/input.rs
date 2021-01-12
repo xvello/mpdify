@@ -35,6 +35,8 @@ pub enum IdleSubsystem {
     Player,
     Mixer,
     Options,
+    #[serde(rename = "output")]
+    Outputs,
 }
 
 /// Parses a float, optionally prefixed by + or -

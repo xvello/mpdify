@@ -1,13 +1,26 @@
 use crate::handlers::aspotify::context::PlayContext;
 use crate::handlers::aspotify::playback::CachedPlayback;
 use crate::mpd_protocol::{
-    HandlerOutput, HandlerResult, PlaybackStatus, StatusDurations, StatusPlaylistInfo,
-    StatusResponse,
+    HandlerOutput, HandlerResult, OutputData, OutputsResponse, PlaybackStatus, StatusDurations,
+    StatusPlaylistInfo, StatusResponse,
 };
-use aspotify::{CurrentPlayback, PlayingType, RepeatState};
+use aspotify::{CurrentPlayback, Device, PlayingType, RepeatState};
 use std::borrow::Borrow;
 use std::sync::Arc;
 use std::time::Duration;
+
+pub fn build_outputs_result(devices: Vec<Device>) -> HandlerResult {
+    let mut out = OutputData::empty();
+    for (pos, device) in devices.iter().enumerate() {
+        out.push(OutputsResponse {
+            ordinal: pos,
+            name: device.name.clone(),
+            enabled: device.is_active,
+            plugin: "spotify".to_string(),
+        })
+    }
+    Ok(HandlerOutput::Data(out))
+}
 
 pub fn build_status_result(input: Arc<CachedPlayback>, context: Arc<PlayContext>) -> HandlerResult {
     match &input.data {

@@ -71,6 +71,9 @@ impl CachedPlayback {
                     if old.currently_playing.item != new.currently_playing.item {
                         changed.insert(IdleSubsystem::Player);
                     }
+                    if old.device.name != new.device.name {
+                        changed.insert(IdleSubsystem::Outputs);
+                    }
                     if CachedPlayback::detect_seek(
                         self.get_elapsed(),
                         new.currently_playing.progress,
