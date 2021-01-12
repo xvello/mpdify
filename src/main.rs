@@ -4,7 +4,6 @@ use mpdify::handlers::client::HandlerClient;
 use mpdify::listeners::http::listener::HttpListener;
 use mpdify::listeners::mpd::MpdListener;
 use mpdify::util::{IdleBus, Settings};
-use tokio_compat_02::FutureExt;
 
 #[tokio::main]
 pub async fn main() -> () {
@@ -24,7 +23,7 @@ pub async fn main() -> () {
     let tasks = vec![
         tokio::spawn(async move { spotify.run().await }),
         tokio::spawn(async move { mpd.run().await }),
-        tokio::spawn(async move { http.run().compat().await }), // hyper crate
+        tokio::spawn(async move { http.run().await }),
     ];
     futures::future::join_all(tasks).await;
 }

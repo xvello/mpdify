@@ -1,9 +1,9 @@
-use serde::export::Formatter;
 use serde::{Serialize, Serializer};
 use std::fmt;
 
 use crate::mpd_protocol::bool_to_int;
 use serde::ser::SerializeStruct;
+use std::fmt::Formatter;
 use std::time::Duration;
 
 /// Playback status for StatusResponse
