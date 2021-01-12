@@ -63,6 +63,12 @@ impl BasicCommandHandler {
             let resp = match input.command {
                 Command::Ping => Ok(HandlerOutput::Ok),
                 Command::Close => Ok(HandlerOutput::Close),
+                Command::Commands => Ok(HandlerOutput::Lines(
+                    Command::known_commands()
+                        .iter()
+                        .map(|s| format!["command: {}", s])
+                        .collect(),
+                )),
                 _ => Err(HandlerError::Unsupported),
             };
             match input.resp.send(resp) {

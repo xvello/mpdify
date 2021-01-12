@@ -23,6 +23,7 @@ pub enum Command {
     NoIdle,
     Status,
     Stats,
+    Commands,
 
     // Playlist info
     PlaylistInfo(Option<PositionRange>), // End is exclusive
@@ -71,6 +72,40 @@ impl FromStr for Command {
 }
 
 impl Command {
+    pub fn known_commands() -> Vec<&'static str> {
+        vec![
+            "clearerror",
+            "currentsong",
+            "status",
+            "commands",
+            "idle",
+            "noidle",
+            "playlistinfo",
+            "playlistid",
+            "random",
+            "repeat",
+            "single",
+            "next",
+            "pause",
+            "previous",
+            "seekcur",
+            "seekid",
+            "seekpos",
+            "stop",
+            "play",
+            "playid",
+            "getvol",
+            "setvol",
+            "volume",
+            "ping",
+            "close",
+            "command_list_begin",
+            "command_list_ok_begin",
+            "command_list_end",
+            "auth",
+        ]
+    }
+
     pub fn from_tokens<'a, I>(mut tokens: I) -> Result<Self, InputError>
     where
         I: Iterator<Item = &'a str>,
@@ -84,6 +119,7 @@ impl Command {
                 "currentsong" => Ok(Command::CurrentSong),
                 "status" => Ok(Command::Status),
                 "stats" => Ok(Command::Stats),
+                "commands" => Ok(Command::Commands),
 
                 // Idle
                 "idle" => {

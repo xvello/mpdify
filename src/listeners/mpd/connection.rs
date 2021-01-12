@@ -153,6 +153,12 @@ impl Connection {
                     }
                 }
             }
+            HandlerOutput::Lines(lines) => {
+                for line in lines {
+                    self.write.write(line.as_bytes()).await?;
+                    self.write.write(b"\n").await?;
+                }
+            }
             HandlerOutput::Idle(subsystems) => {
                 for subsystem in subsystems {
                     self.write.write(b"changed: ").await?;

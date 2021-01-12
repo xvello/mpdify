@@ -32,6 +32,9 @@ pub enum HandlerOutput {
     /// Executed OK, returns data for client,
     /// as a serializable type
     Data(OutputData),
+    /// Executed OK, returns data for client,
+    /// as raw lines
+    Lines(Vec<String>),
     /// Executed OK, close the connection
     Close,
     /// Result of the idle command,
