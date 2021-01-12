@@ -5,6 +5,9 @@ use aspotify::{model, Error, ItemType, Track};
 use std::borrow::Borrow;
 use std::sync::Arc;
 
+// Maximum number of items we can pull at once from the public API
+const PAGE_SIZE: usize = 50;
+
 #[derive(Debug)]
 pub enum PlayContext {
     Album(model::Album),
@@ -128,7 +131,7 @@ impl ContextCache {
                         &mut self
                             .client
                             .albums()
-                            .get_album_tracks(id, 100, album.tracks.items.len(), None)
+                            .get_album_tracks(id, PAGE_SIZE, album.tracks.items.len(), None)
                             .await?
                             .data
                             .items,
@@ -149,7 +152,7 @@ impl ContextCache {
                         &mut self
                             .client
                             .playlists()
-                            .get_playlists_items(id, 100, playlist.tracks.items.len(), None)
+                            .get_playlists_items(id, PAGE_SIZE, playlist.tracks.items.len(), None)
                             .await?
                             .data
                             .items,
