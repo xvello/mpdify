@@ -1,23 +1,20 @@
 use crate::mpd_protocol::commands::Command::{
-    ChangeVolume, Pause, PlayId, PlayPos, PlaylistId, PlaylistInfo, SeekCur, SeekId, SetVolume,
-    SpotifyAuth,
+    ChangeVolume, EnableOutput, Pause, PlayId, PlayPos, PlaylistId, PlaylistInfo, Random, Repeat,
+    RepeatSingle, SeekCur, SeekId, SeekPos, SetVolume, SpotifyAuth,
 };
 use crate::mpd_protocol::input::InputError::{
     InvalidArgument, MissingArgument, MissingCommand, UnknownCommand,
 };
 use crate::mpd_protocol::input::{InputError, RelativeFloat};
-use crate::mpd_protocol::Command::{EnableOutput, Random, Repeat, RepeatSingle, SeekPos};
 use crate::mpd_protocol::{CommandList, IdleSubsystem, PositionRange};
 use enumset::EnumSet;
 use log::debug;
-use std::borrow::Borrow;
 use std::str::FromStr;
 
-// From https://www.musicpd.org/doc/html/protcurrentsongocol.html
+// From https://www.musicpd.org/doc/html/protocol.html
 #[derive(Debug, PartialEq, Clone)]
 pub enum Command {
     // Status commands
-    ClearError,
     CurrentSong,
     Idle(EnumSet<IdleSubsystem>),
     NoIdle,
@@ -70,15 +67,13 @@ impl FromStr for Command {
     type Err = InputError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let tokenized = tokenize_command(s);
-        Command::from_tokens(tokenized.iter().map(String::as_str))
+        Command::from_tokens(tokenize_command(s))
     }
 }
 
 impl Command {
     pub fn known_commands() -> Vec<&'static str> {
         vec![
-            "clearerror",
             "currentsong",
             "status",
             "commands",
@@ -113,127 +108,117 @@ impl Command {
         ]
     }
 
-    pub fn from_tokens<'a, I>(mut tokens: I) -> Result<Self, InputError>
-    where
-        I: Iterator<Item = &'a str>,
-    {
-        tokens
-            .next()
-            .ok_or(MissingCommand)
-            .and_then(|command| match command.borrow() {
-                // Status commands
-                "clearerror" => Ok(Command::ClearError),
-                "currentsong" => Ok(Command::CurrentSong),
-                "status" => Ok(Command::Status),
-                "stats" => Ok(Command::Stats),
-                "commands" => Ok(Command::Commands),
+    pub fn from_tokens(tokens: Vec<String>) -> Result<Self, InputError> {
+        let mut args = Arguments::from_vec(tokens);
+        args.command().and_then(|command| match command.as_ref() {
+            // Status commands
+            "currentsong" => Ok(Command::CurrentSong),
+            "status" => Ok(Command::Status),
+            "stats" => Ok(Command::Stats),
+            "commands" => Ok(Command::Commands),
 
-                // Outputs
-                "outputs" => Ok(Command::Outputs),
-                "toggleoutput" | "enableoutput" => {
-                    parse_arg("id".to_string(), tokens.next()).map(EnableOutput)
-                }
+            // Outputs
+            "outputs" => Ok(Command::Outputs),
+            "toggleoutput" | "enableoutput" => args.req("id").map(EnableOutput),
 
-                // Idle
-                "idle" => {
-                    let mut subsytems: EnumSet<IdleSubsystem> = EnumSet::empty();
-                    for name in tokens {
-                        match serde_yaml::from_str(name) {
-                            Ok(subsytem) => {
-                                subsytems.insert(subsytem);
-                            }
-                            Err(_) => debug!["Ignoring unsupported idle subsystem {}", name],
+            // Idle
+            "idle" => {
+                let mut subsytems: EnumSet<IdleSubsystem> = EnumSet::empty();
+                while let Some(name) = args.pop() {
+                    match serde_yaml::from_str(&name) {
+                        Ok(subsytem) => {
+                            subsytems.insert(subsytem);
                         }
+                        Err(_) => debug!["Ignoring unsupported idle subsystem {}", name],
                     }
-                    if subsytems.is_empty() {
-                        subsytems = EnumSet::all();
-                    }
-                    Ok(Command::Idle(subsytems))
                 }
-                "noidle" => Ok(Command::NoIdle),
+                if subsytems.is_empty() {
+                    subsytems = EnumSet::all();
+                }
+                Ok(Command::Idle(subsytems))
+            }
+            "noidle" => Ok(Command::NoIdle),
 
-                // Playlist info
-                "playlistinfo" => parse_opt("range".to_string(), tokens.next()).map(PlaylistInfo),
-                "playlistid" => parse_opt("songid".to_string(), tokens.next())
-                    .and_then(check_song_id)
-                    .map(PlaylistId),
+            // Playlist info
+            "playlistinfo" => args.opt("range").map(PlaylistInfo),
+            "playlistid" => args.opt("songid").and_then(check_song_id).map(PlaylistId),
 
-                // Playback options
-                "random" => parse_arg("state".to_string(), tokens.next())
-                    .map(int_to_bool)
-                    .map(Random),
-                "repeat" => parse_arg("state".to_string(), tokens.next())
-                    .map(int_to_bool)
-                    .map(Repeat),
-                "single" => parse_arg("state".to_string(), tokens.next())
-                    .map(int_to_bool)
-                    .map(RepeatSingle),
+            // Playback options
+            "random" => args.req("state").map(int_to_bool).map(Random),
+            "repeat" => args.req("state").map(int_to_bool).map(Repeat),
+            "single" => args.req("state").map(int_to_bool).map(RepeatSingle),
 
-                // Playback control
-                "next" => Ok(Command::Next),
-                "pause" => parse_opt("paused".to_string(), tokens.next())
-                    .map(|o: Option<i8>| o.map(|v| v > 0))
-                    .map(Pause),
-                "previous" => Ok(Command::Previous),
-                "seekcur" => parse_arg("time".to_string(), tokens.next()).map(SeekCur),
-                "seekid" => Ok(SeekId(
-                    parse_arg("songid".to_string(), tokens.next())?,
-                    parse_arg("time".to_string(), tokens.next())?,
-                )),
-                "seekpos" => Ok(SeekPos(
-                    parse_arg("songpos".to_string(), tokens.next())?,
-                    parse_arg("time".to_string(), tokens.next())?,
-                )),
-                "stop" => Ok(Command::Stop),
-                "play" => parse_opt("pos".to_string(), tokens.next()).map(PlayPos),
-                "playid" => parse_opt("songid".to_string(), tokens.next())
-                    .and_then(check_song_id)
-                    .map(PlayId),
+            // Playback control
+            "next" => Ok(Command::Next),
+            "pause" => args.opt("paused").map(|v| v.map(int_to_bool)).map(Pause),
+            "previous" => Ok(Command::Previous),
+            "seekcur" => args.req("time").map(SeekCur),
+            "seekid" => Ok(SeekId(args.req("songid")?, args.req("time")?)),
+            "seekpos" => Ok(SeekPos(args.req("songpos")?, args.req("time")?)),
+            "stop" => Ok(Command::Stop),
+            "play" => args.opt("pos").map(PlayPos),
+            "playid" => args.opt("songid").and_then(check_song_id).map(PlayId),
 
-                // Volume
-                "getvol" => Ok(Command::GetVolume),
-                "setvol" => parse_arg("vol".to_string(), tokens.next()).map(SetVolume),
-                "volume" => parse_arg("change".to_string(), tokens.next()).map(ChangeVolume),
+            // Volume
+            "getvol" => Ok(Command::GetVolume),
+            "setvol" => args.req("vol").map(SetVolume),
+            "volume" => args.req("change").map(ChangeVolume),
 
-                // Connection settings
-                "ping" => Ok(Command::Ping),
-                "close" => Ok(Command::Close),
+            // Connection settings
+            "ping" => Ok(Command::Ping),
+            "close" => Ok(Command::Close),
 
-                // Command list
-                "command_list_begin" => Ok(CommandList::start(false)),
-                "command_list_ok_begin" => Ok(CommandList::start(true)),
-                "command_list_end" => Ok(Command::CommandListEnd),
+            // Command list
+            "command_list_begin" => Ok(CommandList::start(false)),
+            "command_list_ok_begin" => Ok(CommandList::start(true)),
+            "command_list_end" => Ok(Command::CommandListEnd),
 
-                // Custom extension to support oauth2 authentication
-                "auth" => parse_opt("url".to_string(), tokens.next()).map(SpotifyAuth),
+            // Custom extension to support oauth2 authentication
+            "auth" => args.opt("url").map(SpotifyAuth),
 
-                // Unsupported commands we just map to a ping
-                "channels" | "subscribe" | "unsubscribe" | "readmessages" | "sendmessage"
-                | "consume" | "crossfade" | "mixrampdb" | "mixrampdelay" | "replay_gain_mode"
-                | "replay_gain_status" | "disableoutput" => Ok(Command::Ping),
+            // Unsupported commands we just map to a ping
+            "clearerror" | "channels" | "subscribe" | "unsubscribe" | "readmessages"
+            | "sendmessage" | "consume" | "crossfade" | "mixrampdb" | "mixrampdelay"
+            | "replay_gain_mode" | "replay_gain_status" | "disableoutput" => Ok(Command::Ping),
 
-                // Unknown command
-                _ => Err(UnknownCommand(command.to_string())),
-            })
+            // Unknown command
+            _ => Err(UnknownCommand(command)),
+        })
     }
 }
 
-fn parse_arg<T: FromStr>(name: String, token: Option<&str>) -> Result<T, InputError> {
-    let parsed: Option<T> = parse_opt(name.clone(), token)?;
-    match parsed {
-        None => Err(MissingArgument(name)),
-        Some(v) => Ok(v),
-    }
-}
+struct Arguments(Vec<String>);
 
-fn parse_opt<T: FromStr>(name: String, token: Option<&str>) -> Result<Option<T>, InputError> {
-    match token {
-        None => Ok(None),
-        Some(v) => {
-            T::from_str(v.borrow())
+impl Arguments {
+    pub fn from_vec(mut tokens: Vec<String>) -> Self {
+        tokens.reverse();
+        Self(tokens)
+    }
+
+    pub fn pop(&mut self) -> Option<String> {
+        self.0.pop()
+    }
+
+    pub fn command(&mut self) -> Result<String, InputError> {
+        match self.0.pop() {
+            None => Err(MissingCommand),
+            Some(v) => Ok(v),
+        }
+    }
+
+    pub fn req<T: FromStr>(&mut self, name: &'static str) -> Result<T, InputError> {
+        match self.opt(name)? {
+            Some(v) => Ok(v),
+            None => Err(MissingArgument(name)),
+        }
+    }
+
+    fn opt<T: FromStr>(&mut self, name: &'static str) -> Result<Option<T>, InputError> {
+        match self.0.pop() {
+            None => Ok(None),
+            Some(v) => T::from_str(&v)
                 .map(Option::Some)
-                // TODO: propagate parsing error
-                .map_err(|_e| InvalidArgument(name, v.to_string()))
+                .map_err(|_e| InvalidArgument(name, v.to_string())),
         }
     }
 }
@@ -245,7 +230,7 @@ fn int_to_bool(value: u8) -> bool {
 /// Ensures song IDs are strictly higher than zero (invalid value)
 fn check_song_id(id: Option<usize>) -> Result<Option<usize>, InputError> {
     match id {
-        Some(0) => Err(InvalidArgument("songid".to_string(), "0".to_string())),
+        Some(0) => Err(InvalidArgument("songid", "0".to_string())),
         _ => Ok(id),
     }
 }
@@ -317,7 +302,7 @@ mod tests {
 
         assert_eq!(
             Command::from_str("pause A").err().unwrap(),
-            InvalidArgument("paused".to_string(), "A".to_string())
+            InvalidArgument("paused", "A".to_string())
         );
     }
 
@@ -328,15 +313,15 @@ mod tests {
 
         assert_eq!(
             Command::from_str("playid A").err().unwrap(),
-            InvalidArgument("songid".to_string(), "A".to_string())
+            InvalidArgument("songid", "A".to_string())
         );
         assert_eq!(
             Command::from_str("playid 0").err().unwrap(),
-            InvalidArgument("songid".to_string(), "0".to_string())
+            InvalidArgument("songid", "0".to_string())
         );
         assert_eq!(
             Command::from_str("playid -10").err().unwrap(),
-            InvalidArgument("songid".to_string(), "-10".to_string())
+            InvalidArgument("songid", "-10".to_string())
         );
     }
 
@@ -366,11 +351,11 @@ mod tests {
 
         assert_eq!(
             Command::from_str("seekcur").err().unwrap(),
-            MissingArgument("time".to_string())
+            MissingArgument("time")
         );
         assert_eq!(
             Command::from_str("seekcur A").err().unwrap(),
-            InvalidArgument("time".to_string(), "A".to_string())
+            InvalidArgument("time", "A".to_string())
         );
     }
 

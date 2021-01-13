@@ -114,13 +114,10 @@ mod tests {
     async fn it_propagates_parsing_errors() {
         let mut input = Lines::from_str(vec!["volume", "volume A", "unknown"]);
         input
-            .assert_input_error(InputError::MissingArgument("change".to_string()))
+            .assert_input_error(InputError::MissingArgument("change"))
             .await;
         input
-            .assert_input_error(InputError::InvalidArgument(
-                "change".to_string(),
-                "A".to_string(),
-            ))
+            .assert_input_error(InputError::InvalidArgument("change", "A".to_string()))
             .await;
         input
             .assert_input_error(InputError::UnknownCommand("unknown".to_string()))

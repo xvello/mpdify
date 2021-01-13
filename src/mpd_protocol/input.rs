@@ -16,9 +16,9 @@ pub enum InputError {
     #[error("unknown command {0}")]
     UnknownCommand(String),
     #[error("missing argument {0}")]
-    MissingArgument(String),
+    MissingArgument(&'static str),
     #[error("invalid value for argument {0}: {1}")]
-    InvalidArgument(String, String),
+    InvalidArgument(&'static str, String),
     #[error("cannot nest command lists")]
     NestedLists,
 }

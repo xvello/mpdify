@@ -66,7 +66,8 @@ async fn handle_request(req: Request<Body>, state: State) -> Result {
 }
 
 async fn handle_command(state: State, input: Split<'_, char>) -> Result {
-    let command = Command::from_tokens(input)?;
+    let tokens = input.map(|s| s.to_string()).collect();
+    let command = Command::from_tokens(tokens)?;
     match state.handler.exec(command).await? {
         HandlerOutput::Data(data) => ok_json(&data),
         _ => ok_empty(),
