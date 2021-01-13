@@ -33,7 +33,7 @@ pub fn build_song_from_track(track: &Track, pos_provider: impl Fn(&str) -> usize
     let pos = pos_provider(spotify_id.as_str());
 
     SongResponse {
-        file: spotify_id,
+        file: build_path("album", track.album.id.as_ref(), "track", track.id.as_ref()),
         artist: flatten_artists(track.artists.as_ref()),
         album: track.album.name.clone(),
         title: track.name.clone(),
@@ -51,10 +51,8 @@ pub fn build_song_from_tracksimplified(
     album: &Album,
     pos: usize,
 ) -> SongResponse {
-    let spotify_id = track.id.clone().unwrap_or_else(String::new);
-
     SongResponse {
-        file: spotify_id,
+        file: build_path("album", Some(&album.id), "track", track.id.as_ref()),
         artist: flatten_artists(track.artists.as_ref()),
         album: album.name.clone(),
         title: track.name.clone(),
@@ -72,7 +70,7 @@ pub fn build_song_from_episode(ep: &Episode, pos_provider: impl Fn(&str) -> usiz
     let pos = pos_provider(spotify_id);
 
     SongResponse {
-        file: spotify_id.to_string(),
+        file: build_path("show", Some(&ep.show.id), "episode", Some(&ep.id)),
         artist: ep.show.publisher.clone(),
         album: ep.show.name.clone(),
         title: ep.name.clone(),
@@ -91,7 +89,7 @@ pub fn build_song_from_episodesimplified(
     pos: usize,
 ) -> SongResponse {
     SongResponse {
-        file: ep.id.clone(),
+        file: build_path("show", Some(&show.id), "episode", Some(&ep.id)),
         artist: show.publisher.clone(),
         album: show.name.clone(),
         title: ep.name.clone(),
@@ -117,4 +115,22 @@ pub fn flatten_artists(artists: &[ArtistSimplified]) -> String {
         }
     }
     result
+}
+
+pub fn build_path(
+    parent_type: &'static str,
+    parent_id: Option<&String>,
+    child_type: &'static str,
+    child_id: Option<&String>,
+) -> String {
+    match child_id {
+        None => "unknown".to_string(),
+        Some(child_id) => match parent_id {
+            None => format!("/_spotify/{}/{}", child_type, child_id),
+            Some(parent_id) => format!(
+                "/_spotify/{}/{}/{}/{}",
+                parent_type, parent_id, child_type, child_id
+            ),
+        },
+    }
 }
