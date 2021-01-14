@@ -102,18 +102,11 @@ pub fn build_song_from_episodesimplified(
 }
 
 pub fn flatten_artists(artists: &[ArtistSimplified]) -> String {
-    let mut result = String::new();
-    let mut first = true;
-
-    for a in artists {
-        result.push_str(&a.name);
-        if first {
-            first = false;
-        } else {
-            result.push_str(", ");
-        }
-    }
-    result
+    artists
+        .iter()
+        .map(|a| a.name.as_str())
+        .collect::<Vec<&str>>()
+        .join(", ")
 }
 
 pub fn build_path(
