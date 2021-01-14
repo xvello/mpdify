@@ -5,7 +5,6 @@ use crate::mpd_protocol::{
     StatusPlaylistInfo, StatusResponse,
 };
 use aspotify::{CurrentPlayback, Device, PlayingType, RepeatState};
-use std::borrow::Borrow;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -50,8 +49,8 @@ pub fn build_status_result(input: Arc<CachedPlayback>, context: Arc<PlayContext>
                     PlaybackStatus::Pause
                 },
                 random: data.shuffle_state,
-                repeat: RepeatState::Off.ne(data.repeat_state.borrow()),
-                single: RepeatState::Track.eq(data.repeat_state.borrow()),
+                repeat: RepeatState::Off.ne(&data.repeat_state),
+                single: RepeatState::Track.eq(&data.repeat_state),
                 durations: extract_durations(&data, input.get_elapsed()),
                 playlist_info: Some(StatusPlaylistInfo::new(context.size(), pos)),
             }))

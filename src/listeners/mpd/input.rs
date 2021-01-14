@@ -2,7 +2,6 @@ use crate::listeners::mpd::types::ListenerError;
 use crate::mpd_protocol::Command::CommandListStart;
 use crate::mpd_protocol::*;
 use log::debug;
-use std::borrow::Borrow;
 use std::str::FromStr;
 use tokio_stream::{Stream, StreamExt};
 
@@ -40,7 +39,7 @@ where
             Err(err) => Err(ListenerError::IO(err)),
             Ok(line) => {
                 debug!("Read command {:?}", line);
-                Command::from_str(line.borrow()).map_err(ListenerError::InputError)
+                Command::from_str(&line).map_err(ListenerError::InputError)
             }
         },
     }

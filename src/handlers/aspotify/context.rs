@@ -2,7 +2,6 @@ use crate::mpd_protocol::IdleSubsystem;
 use crate::util::IdleBus;
 use aspotify::Market::FromToken;
 use aspotify::{model, Error, ItemType, Track};
-use std::borrow::Borrow;
 use std::sync::Arc;
 
 // Maximum number of items we can pull at once from the public API
@@ -122,7 +121,7 @@ impl ContextCache {
     }
 
     async fn retrieve(&mut self, key: &model::Context) -> Result<PlayContext, Error> {
-        let id = key.id.borrow();
+        let id = &key.id;
         Ok(match key.context_type {
             ItemType::Album => {
                 let mut album = self.client.albums().get_album(id, None).await?.data;

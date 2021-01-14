@@ -1,7 +1,6 @@
 use crate::mpd_protocol::IdleSubsystem;
 use aspotify::{model, CurrentPlayback};
 use enumset::EnumSet;
-use std::borrow::Borrow;
 use std::time::{Duration, Instant};
 
 pub struct CachedPlayback {
@@ -25,7 +24,7 @@ impl CachedPlayback {
     }
 
     pub fn get_playing(&self) -> Option<&model::CurrentlyPlaying> {
-        self.data.as_ref().map(|d| d.currently_playing.borrow())
+        self.data.as_ref().map(|d| &d.currently_playing)
     }
 
     pub fn get_elapsed(&self) -> Option<Duration> {

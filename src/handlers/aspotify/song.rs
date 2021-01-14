@@ -5,7 +5,6 @@ use aspotify::{
     Track, TrackSimplified,
 };
 use chrono::Datelike;
-use std::borrow::Borrow;
 use std::sync::Arc;
 
 pub fn build_song_from_playing(
@@ -107,7 +106,7 @@ pub fn flatten_artists(artists: &[ArtistSimplified]) -> String {
     let mut first = true;
 
     for a in artists {
-        result.push_str(a.name.borrow());
+        result.push_str(&a.name);
         if first {
             first = false;
         } else {
