@@ -1,4 +1,4 @@
-use crate::mpd_protocol::{HandlerError, InputError};
+use crate::mpd_protocol::{HandlerError, InputError, SerializerError};
 use std::fmt::Debug;
 use thiserror::Error;
 
@@ -9,7 +9,8 @@ pub enum ListenerError {
     IO(#[from] std::io::Error),
     #[error("client closed the connection")]
     ConnectionClosed,
-
+    #[error(transparent)]
+    SerializerError(#[from] SerializerError),
     // Input error that will trigger an ACK but keep the connection open
     #[error(transparent)]
     InputError(#[from] InputError),

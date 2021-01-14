@@ -1,7 +1,6 @@
 use serde::{Serialize, Serializer};
 use std::fmt;
 
-use crate::mpd_protocol::bool_to_int;
 use serde::ser::SerializeStruct;
 use std::fmt::Formatter;
 use std::time::Duration;
@@ -21,13 +20,10 @@ pub struct StatusResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub volume: Option<u32>,
     pub state: PlaybackStatus,
-    #[serde(serialize_with = "bool_to_int")]
     pub random: bool,
-    #[serde(serialize_with = "bool_to_int")]
     pub repeat: bool,
-    #[serde(serialize_with = "bool_to_int")]
     pub single: bool,
-    #[serde(skip_serializing_if = "Option::is_none", flatten)]
+    #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub durations: Option<StatusDurations>,
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub playlist_info: Option<StatusPlaylistInfo>,
@@ -108,15 +104,11 @@ pub struct SongResponse {
 
 /// Response for the outputs command
 #[derive(Debug, PartialEq, Serialize)]
-#[serde(rename_all = "PascalCase")]
+#[serde(rename_all = "lowercase")]
 pub struct OutputsResponse {
-    #[serde(rename = "outputid")]
-    pub ordinal: usize,
-    #[serde(rename = "outputname")]
-    pub name: String,
-    #[serde(rename = "outputenabled", serialize_with = "bool_to_int")]
-    pub enabled: bool,
-    #[serde(rename = "plugin")]
+    pub outputid: usize,
+    pub outputname: String,
+    pub outputenabled: bool,
     pub plugin: String,
 }
 

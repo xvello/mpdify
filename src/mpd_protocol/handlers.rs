@@ -1,8 +1,7 @@
-use thiserror::Error;
-
 use crate::mpd_protocol::commands::Command;
 use crate::mpd_protocol::{IdleSubsystem, OutputData};
 use enumset::EnumSet;
+use thiserror::Error;
 use tokio::sync::oneshot::Sender;
 
 /// Errors caused by command handling
@@ -12,7 +11,6 @@ pub enum HandlerError {
     Unsupported,
     #[error(transparent)]
     GetError(#[from] tokio::sync::mpsc::error::SendError<HandlerInput>),
-
     #[error("Authenticate at: {0}")]
     AuthNeeded(String),
     #[error(transparent)]

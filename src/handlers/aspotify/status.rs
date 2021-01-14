@@ -12,9 +12,9 @@ pub fn build_outputs_result(devices: Vec<Device>) -> HandlerResult {
     let mut out = OutputData::empty();
     for (pos, device) in devices.iter().enumerate() {
         out.push(OutputsResponse {
-            ordinal: pos,
-            name: device.name.clone(),
-            enabled: device.is_active,
+            outputid: pos,
+            outputname: device.name.clone(),
+            outputenabled: device.is_active,
             plugin: "spotify".to_string(),
         })
     }

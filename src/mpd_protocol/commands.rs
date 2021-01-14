@@ -123,6 +123,9 @@ impl Command {
 
             // Idle
             "idle" => {
+                if args.is_empty() {
+                    return Ok(Command::Idle(EnumSet::all()));
+                }
                 let mut subsytems: EnumSet<IdleSubsystem> = EnumSet::empty();
                 while let Some(name) = args.pop() {
                     match serde_yaml::from_str(&name) {
@@ -131,9 +134,6 @@ impl Command {
                         }
                         Err(_) => debug!["Ignoring unsupported idle subsystem {}", name],
                     }
-                }
-                if subsytems.is_empty() {
-                    subsytems = EnumSet::all();
                 }
                 Ok(Command::Idle(subsytems))
             }
@@ -193,6 +193,10 @@ impl Arguments {
     pub fn from_vec(mut tokens: Vec<String>) -> Self {
         tokens.reverse();
         Self(tokens)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 
     pub fn pop(&mut self) -> Option<String> {

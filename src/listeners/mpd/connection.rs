@@ -146,11 +146,8 @@ impl Connection {
             HandlerOutput::Data(data) => {
                 let mut items = stream::iter(data.data);
                 while let Some(item) = items.next().await {
-                    let bytes = to_vec(item.as_ref())?;
-                    if !bytes.is_empty() {
-                        self.write.write(bytes.as_ref()).await?;
-                        self.write.write(b"\n").await?;
-                    }
+                    let bytes = to_string(&item)?;
+                    self.write.write(bytes.as_bytes()).await?;
                 }
             }
             HandlerOutput::Lines(lines) => {
@@ -162,7 +159,7 @@ impl Connection {
             HandlerOutput::Idle(subsystems) => {
                 for subsystem in subsystems {
                     self.write.write(b"changed: ").await?;
-                    self.write.write(&to_vec(&subsystem)?).await?;
+                    self.write.write(to_string(&subsystem)?.as_bytes()).await?;
                     self.write.write(b"\n").await?;
                 }
             }
