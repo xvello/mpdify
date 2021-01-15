@@ -26,10 +26,13 @@ serde_fmt = "1.0"
 
 regex = "1.4.2"
 lazy_static = "1.4.0"
+reqwest = "0.11.0"
 
 aspotify = "0.7"
 #aspotify = { git = "https://github.com/xvello/aspotify.git", branch = "mpdify" }
 chrono = { version = "0.4" }
+
+lru-disk-cache = { git = "https://github.com/xvello/lru-disk-cache" }
 
 ### https://github.com/Lymia/enumset/pull/18
 [patch.crates-io.enumset_derive]

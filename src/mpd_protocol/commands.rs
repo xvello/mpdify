@@ -6,6 +6,7 @@ use crate::mpd_protocol::input::InputError::{
     InvalidArgument, MissingArgument, MissingCommand, UnknownCommand,
 };
 use crate::mpd_protocol::input::{InputError, RelativeFloat};
+use crate::mpd_protocol::Command::AlbumArt;
 use crate::mpd_protocol::{CommandList, IdleSubsystem, PositionRange};
 use enumset::EnumSet;
 use log::debug;
@@ -59,6 +60,9 @@ pub enum Command {
     CommandListStart(CommandList),
     CommandListEnd,
 
+    // Artwork
+    AlbumArt(String, u64),
+
     // Custom extension to support oauth2 authentication
     SpotifyAuth(Option<String>),
 }
@@ -105,6 +109,8 @@ impl Command {
             "outputs",
             "toggleoutput",
             "enableoutput",
+            "albumart",
+            "readpicture",
         ]
     }
 
@@ -175,6 +181,9 @@ impl Command {
 
             // Custom extension to support oauth2 authentication
             "auth" => args.opt("url").map(SpotifyAuth),
+
+            // Artwork
+            "albumart" | "readpicture" => Ok(AlbumArt(args.req("uri")?, args.req("offset")?)),
 
             // Unsupported commands we just map to a ping
             "clearerror" | "channels" | "subscribe" | "unsubscribe" | "readmessages"

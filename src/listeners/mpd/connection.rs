@@ -163,6 +163,13 @@ impl Connection {
                     self.write.write(b"\n").await?;
                 }
             }
+            HandlerOutput::Binary(size, data) => {
+                self.write
+                    .write(format!("size: {}\nbinary: {}\n", size, data.len()).as_bytes())
+                    .await?;
+                self.write.write(data.as_ref()).await?;
+                self.write.write(b"\n").await?;
+            }
         }
 
         match ok_output {

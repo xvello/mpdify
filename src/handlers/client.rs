@@ -1,5 +1,12 @@
 use crate::mpd_protocol::{Command, HandlerError, HandlerInput, HandlerResult};
+use aspotify::{Client, ClientCredentials};
+use std::env::VarError;
+use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
+
+pub fn build_aspotify_client() -> Result<Arc<Client>, VarError> {
+    ClientCredentials::from_env().map(Client::new).map(Arc::new)
+}
 
 #[derive(Default, Clone)]
 pub struct HandlerClient {

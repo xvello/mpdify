@@ -15,9 +15,14 @@ pub enum HandlerError {
     AuthNeeded(String),
     #[error(transparent)]
     RedirectedError(#[from] aspotify::RedirectedError),
-    #[error(transparent)]
+    #[error("Spotify error: {0}")]
     ASpotifyError(#[from] aspotify::model::Error),
-
+    #[error("I/O error: {0}")]
+    IOError(#[from] std::io::Error),
+    #[error("Cannot read cache: {0}")]
+    CacheError(#[from] lru_disk_cache::Error),
+    #[error("Cannot retrieve data: {0}")]
+    ReqwestError(#[from] reqwest::Error),
     #[error("{0}")]
     FromString(String),
 }
@@ -30,6 +35,9 @@ pub enum HandlerOutput {
     /// Executed OK, returns data for client,
     /// as a serializable type
     Data(OutputData),
+    /// Executed OK, returns the total size and a
+    /// chunk of binary data
+    Binary(u64, Vec<u8>),
     /// Executed OK, returns data for client,
     /// as raw lines
     Lines(Vec<String>),

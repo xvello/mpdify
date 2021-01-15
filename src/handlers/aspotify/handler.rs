@@ -7,7 +7,7 @@ use crate::handlers::aspotify::status::{build_outputs_result, build_status_resul
 use crate::handlers::aspotify::utils::{compute_repeat, compute_seek};
 use crate::mpd_protocol::*;
 use crate::util::{IdleBus, Settings};
-use aspotify::{Client, ClientCredentials, Play};
+use aspotify::{Client, Play};
 use log::{debug, warn};
 use std::sync::Arc;
 use std::time::Duration;
@@ -28,10 +28,10 @@ type AResult = Result<(), aspotify::model::Error>;
 impl SpotifyHandler {
     pub async fn new(
         settings: &Settings,
+        client: Arc<Client>,
         idle_bus: Arc<IdleBus>,
     ) -> (Self, mpsc::Sender<HandlerInput>) {
         let (command_tx, command_rx) = mpsc::channel(16);
-        let client = Arc::new(Client::new(ClientCredentials::from_env().unwrap()));
         let context_cache = ContextCache::new(client.clone(), idle_bus.clone());
         let auth_status = AuthStatus::new(settings, client.clone()).await;
         let playback = PlaybackClient::new(settings, client.clone(), idle_bus);
@@ -48,14 +48,12 @@ impl SpotifyHandler {
     }
     pub async fn run(&mut self) {
         debug!["aspotify handler entered loop"];
-
         // Loop in incoming commands
         while let Some(input) = self.command_rx.recv().await {
             if let Err(err) = input.resp.send(self.execute(input.command).await) {
                 warn!["Cannot send response: {:?}", err];
             }
         }
-
         debug!["aspotify handler exited loop"];
     }
 
