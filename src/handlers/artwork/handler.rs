@@ -1,7 +1,7 @@
+use crate::handlers::artwork::extract::ExtractArt;
 use crate::mpd_protocol::*;
 use crate::util::Settings;
 use aspotify::Client;
-use hyper::body::Bytes;
 use log::{debug, warn};
 use lru_disk_cache::{LruDiskCache, ReadSeek};
 use std::ops::Deref;
@@ -63,36 +63,28 @@ impl ArtworkHandler {
     }
 
     async fn get_art(&mut self, path: Path) -> Result<Box<dyn ReadSeek>, HandlerError> {
-        if let Some(album_id) = parse_album_id(&path) {
-            if !self.cache.contains_key(album_id) {
-                let art = self.get_art_for_album(album_id).await?;
-                self.cache.insert_bytes(album_id, art.deref())?;
+        let (art_id, art_url) = self.resolve_art_url(&path).await?;
+        if !self.cache.contains_key(&art_id) {
+            let art = reqwest::get(&art_url).await?.bytes().await?;
+            self.cache.insert_bytes(&art_id, art.deref())?;
+        }
+        return self.cache.get(&art_id).map_err(HandlerError::CacheError);
+    }
+
+    async fn resolve_art_url(&mut self, path: &Path) -> Result<(String, String), HandlerError> {
+        if let Path::Internal(items) = path {
+            for (item_type, id) in items.iter().rev() {
+                let artwork = match item_type {
+                    ItemType::Album => self.client.albums().get_album(id, None).await?.get_art(),
+                    ItemType::Show => self.client.shows().get_show(id, None).await?.get_art(),
+                    ItemType::Artist => self.client.artists().get_artist(id).await?.get_art(),
+                    _ => None,
+                };
+                if let Some(url) = artwork {
+                    return Ok((id.to_string(), url));
+                }
             }
-            return self.cache.get(album_id).map_err(HandlerError::CacheError);
         }
         Err(HandlerError::Unsupported)
     }
-
-    async fn get_art_for_album(&mut self, album_id: &str) -> Result<Bytes, HandlerError> {
-        log::debug!("Retrieving album info for {}", album_id);
-        let album = self.client.albums().get_album(album_id, None).await?;
-        match album.data.images.get(0).map(|i| &i.url) {
-            None => Err(HandlerError::FromString("No art for album".to_string())),
-            Some(url) => {
-                log::debug!("Retrieving cover art at {}", url);
-                Ok(reqwest::get(url).await?.bytes().await?)
-            }
-        }
-    }
-}
-
-fn parse_album_id(path: &Path) -> Option<&str> {
-    if let Path::Internal(items) = path {
-        for (item_type, id) in items {
-            if item_type == &ItemType::Album {
-                return Some(id.as_ref());
-            }
-        }
-    }
-    None
 }

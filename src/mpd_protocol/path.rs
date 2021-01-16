@@ -6,7 +6,7 @@ use std::convert::AsRef;
 use std::str::FromStr;
 use strum::{AsRefStr, EnumString};
 
-const SEPARATOR: &str = "/";
+const SEPARATOR: char = '/';
 const INTERNAL_PREFIX: &str = "internal";
 
 #[derive(Debug, Eq, PartialEq, EnumString, AsRefStr, Clone)]
@@ -36,7 +36,7 @@ impl FromStr for Path {
                 let mut items = vec![];
                 while let Some(Ok(item_type)) = tokens.next().map(ItemType::from_str) {
                     match tokens.next() {
-                        None => return Err(InputError::MissingArgument("id")),
+                        None | Some("") => {}
                         Some(id) => items.push((item_type, id.to_string())),
                     }
                 }
@@ -63,9 +63,9 @@ impl ToString for Path {
             Internal(items) => {
                 let mut output = INTERNAL_PREFIX.to_string();
                 for (item_type, id) in items {
-                    output.push_str(SEPARATOR);
+                    output.push(SEPARATOR);
                     output.push_str(item_type.as_ref());
-                    output.push_str(SEPARATOR);
+                    output.push(SEPARATOR);
                     output.push_str(id.as_str());
                 }
                 output
@@ -96,7 +96,7 @@ mod tests {
     use crate::mpd_protocol::ItemType::{Album, Track};
 
     #[test]
-    fn test_to_from_string() {
+    fn test_marshal_unmarshall() {
         let cases = vec![
             ("", Empty),
             (
@@ -105,6 +105,10 @@ mod tests {
                     (Album, "4IOXEu8EgItKI8J9JDaEr4".to_string()),
                     (Track, "5fQP3T652SI6zdDaEtgwOd".to_string()),
                 ]),
+            ),
+            (
+                "internal/album/4IOXEu8EgItKI8J9JDaEr4",
+                Internal(vec![(Album, "4IOXEu8EgItKI8J9JDaEr4".to_string())]),
             ),
             (
                 "internal/album/4IOXEu8EgItKI8J9JDaEr4/track/5fQP3T652SI6zdDaEtgwOd",
@@ -118,6 +122,21 @@ mod tests {
 
         for (text, variant) in cases {
             assert_eq!(text, &variant.to_string());
+            assert_eq!(variant, Path::from_str(text).expect("Parsing error"));
+        }
+    }
+
+    #[test]
+    fn test_unmarshall_edge_cases() {
+        let cases = vec![
+            // Missing track ID (artwork for parent folder)
+            (
+                "internal/album/4IOXEu8EgItKI8J9JDaEr4/track/",
+                Internal(vec![(Album, "4IOXEu8EgItKI8J9JDaEr4".to_string())]),
+            ),
+        ];
+
+        for (text, variant) in cases {
             assert_eq!(variant, Path::from_str(text).expect("Parsing error"));
         }
     }
