@@ -1,37 +1,33 @@
 [package]
-name = "mpdify"
-version = "0.1.0"
 authors = ["Xavier Vello <xavier.vello@gmail.com>"]
 edition = "2018"
+license = "GPL-3.0-or-later"
+name = "mpdify"
+readme = "README.md"
+repository = "https://github.com/xvello/mpdify"
+version = "0.1.0"
 
 [dependencies]
-thiserror = "1.0"
-log = "0.4"
-pretty_env_logger = "0.4"
+aspotify = "0.7"
+chrono = { version = "0.4" }
 config = { version = "0.10", default-features = false }
 enumset = "1.0"
-
-tokio = { version = "1.0.1", features = ["full"] }
+erased-serde = "0.3"
 futures = "0.3"
+hyper = { version = "0.14.2", features = ["http1", "server"] }
+log = "0.4"
+lru-disk-cache = { git = "https://github.com/xvello/lru-disk-cache" }
+pretty_env_logger = "0.4"
+reqwest = "0.11.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_fmt = "1.0"
+serde_json = "1.0"
+serde_yaml = "0.8.15"
+strum = { version = "0.20", features = ["derive"] }
+thiserror = "1.0"
+tokio = { version = "1.0.1", features = ["full"] }
 tokio-stream = { version = "0.1.1", features = ["io-util"] }
 tokio-util = { version = "0.6", features = ["time"] }
-
-hyper = { version = "0.14.2", features = ["http1", "server"] }
-serde_json = "1.0"
-
-serde = { version = "1.0", features = ["derive"] }
-erased-serde = "0.3"
-serde_yaml = "0.8.15"
-serde_fmt = "1.0"
-
-reqwest = "0.11.0"
-strum = { version = "0.20", features = ["derive"] }
-
-aspotify = "0.7"
-#aspotify = { git = "https://github.com/xvello/aspotify.git", branch = "mpdify" }
-chrono = { version = "0.4" }
-
-lru-disk-cache = { git = "https://github.com/xvello/lru-disk-cache" }
 
 ### https://github.com/Lymia/enumset/pull/18
 [patch.crates-io.enumset_derive]
