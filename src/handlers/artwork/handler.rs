@@ -22,8 +22,8 @@ impl ArtworkHandler {
         client: Arc<Client>,
     ) -> Result<(Self, mpsc::Sender<HandlerInput>), lru_disk_cache::Error> {
         let (command_tx, command_rx) = mpsc::channel(16);
-        let cache =
-            LruDiskCache::new(settings.artwork_cache_path(), settings.artwork_cache_size())?;
+        let cache_path = settings.cache_root_path().join("artwork");
+        let cache = LruDiskCache::new(cache_path, settings.artwork_cache_size())?;
         Ok((
             ArtworkHandler {
                 command_rx,

@@ -9,7 +9,7 @@ pub struct Settings {
     http_port: u16,
     http_host: String,
     bind_address: IpAddr,
-    artwork_cache_path: String,
+    cache_path: String,
     artwork_cache_size_mb: u64,
     artwork_chunk_size_kb: u64,
     pub playback_pool_freq_base_seconds: u64,
@@ -25,7 +25,7 @@ impl Settings {
         s.set_default("bind_address", "0.0.0.0")?;
         s.set_default("playback_pool_freq_base_seconds", "15")?;
         s.set_default("playback_pool_freq_fast_seconds", "1")?;
-        s.set_default("artwork_cache_path", "caches/artwork/")?;
+        s.set_default("cache_path", "caches/")?;
         s.set_default("artwork_cache_size_mb", 500)?;
         s.set_default("artwork_chunk_size_kb", 128)?; // MPDs default is 8kB
         Ok(s)
@@ -57,8 +57,8 @@ impl Settings {
         SocketAddr::new(self.bind_address, self.mpd_port)
     }
 
-    pub fn artwork_cache_path(&self) -> &Path {
-        Path::new(&self.artwork_cache_path)
+    pub fn cache_root_path(&self) -> &Path {
+        Path::new(&self.cache_path)
     }
 
     pub fn artwork_cache_size(&self) -> u64 {
