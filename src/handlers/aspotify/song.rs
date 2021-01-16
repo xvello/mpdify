@@ -1,5 +1,5 @@
 use crate::handlers::aspotify::context::PlayContext;
-use crate::mpd_protocol::{HandlerOutput, HandlerResult, SongResponse};
+use crate::mpd_protocol::{HandlerOutput, HandlerResult, Path, SongResponse};
 use aspotify::{
     Album, ArtistSimplified, CurrentlyPlaying, Episode, EpisodeSimplified, PlayingType, Show,
     Track, TrackSimplified,
@@ -32,7 +32,7 @@ pub fn build_song_from_track(track: &Track, pos_provider: impl Fn(&str) -> usize
     let pos = pos_provider(spotify_id.as_str());
 
     SongResponse {
-        file: build_path("album", track.album.id.as_ref(), "track", track.id.as_ref()),
+        file: Path::for_track(unwrap(&track.album.id), unwrap(&track.id)),
         artist: flatten_artists(track.artists.as_ref()),
         album: track.album.name.clone(),
         title: track.name.clone(),
@@ -51,7 +51,7 @@ pub fn build_song_from_tracksimplified(
     pos: usize,
 ) -> SongResponse {
     SongResponse {
-        file: build_path("album", Some(&album.id), "track", track.id.as_ref()),
+        file: Path::for_track(&album.id, unwrap(&track.id)),
         artist: flatten_artists(track.artists.as_ref()),
         album: album.name.clone(),
         title: track.name.clone(),
@@ -69,7 +69,7 @@ pub fn build_song_from_episode(ep: &Episode, pos_provider: impl Fn(&str) -> usiz
     let pos = pos_provider(spotify_id);
 
     SongResponse {
-        file: build_path("show", Some(&ep.show.id), "episode", Some(&ep.id)),
+        file: Path::for_episode(&ep.show.id, &ep.id),
         artist: ep.show.publisher.clone(),
         album: ep.show.name.clone(),
         title: ep.name.clone(),
@@ -88,7 +88,7 @@ pub fn build_song_from_episodesimplified(
     pos: usize,
 ) -> SongResponse {
     SongResponse {
-        file: build_path("show", Some(&show.id), "episode", Some(&ep.id)),
+        file: Path::for_episode(&show.id, &ep.id),
         artist: show.publisher.clone(),
         album: show.name.clone(),
         title: ep.name.clone(),
@@ -109,20 +109,10 @@ pub fn flatten_artists(artists: &[ArtistSimplified]) -> String {
         .join(", ")
 }
 
-pub fn build_path(
-    parent_type: &'static str,
-    parent_id: Option<&String>,
-    child_type: &'static str,
-    child_id: Option<&String>,
-) -> String {
-    match child_id {
-        None => "unknown".to_string(),
-        Some(child_id) => match parent_id {
-            None => format!("/_spotify/{}/{}", child_type, child_id),
-            Some(parent_id) => format!(
-                "/_spotify/{}/{}/{}/{}",
-                parent_type, parent_id, child_type, child_id
-            ),
-        },
+/// Unwrap optional track and album IDs, assuming they are filled
+pub fn unwrap(v: &Option<String>) -> &str {
+    match v {
+        None => "unknown",
+        Some(s) => s.as_ref(),
     }
 }

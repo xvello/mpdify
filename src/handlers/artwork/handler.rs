@@ -2,10 +2,8 @@ use crate::mpd_protocol::*;
 use crate::util::Settings;
 use aspotify::Client;
 use hyper::body::Bytes;
-use lazy_static::lazy_static;
 use log::{debug, warn};
 use lru_disk_cache::{LruDiskCache, ReadSeek};
-use regex::Regex;
 use std::ops::Deref;
 use std::sync::Arc;
 use tokio::io::SeekFrom;
@@ -49,8 +47,8 @@ impl ArtworkHandler {
 
     async fn execute(&mut self, command: Command) -> HandlerResult {
         match command {
-            Command::AlbumArt(uri, offset) => {
-                let mut art = self.get_art(uri).await?;
+            Command::AlbumArt(path, offset) => {
+                let mut art = self.get_art(path).await?;
                 let size = art.seek(SeekFrom::End(0))?;
                 let chunk_size = self.max_chunk_size.min(size - offset) as usize;
                 let mut data = vec![0; chunk_size];
@@ -64,15 +62,15 @@ impl ArtworkHandler {
         }
     }
 
-    async fn get_art(&mut self, uri: String) -> Result<Box<dyn ReadSeek>, HandlerError> {
-        if let Some(album_id) = parse_album_id(&uri) {
+    async fn get_art(&mut self, path: Path) -> Result<Box<dyn ReadSeek>, HandlerError> {
+        if let Some(album_id) = parse_album_id(&path) {
             if !self.cache.contains_key(album_id) {
                 let art = self.get_art_for_album(album_id).await?;
                 self.cache.insert_bytes(album_id, art.deref())?;
             }
             return self.cache.get(album_id).map_err(HandlerError::CacheError);
         }
-        Err(HandlerError::FromString(format!("Unknown path {}", uri)))
+        Err(HandlerError::Unsupported)
     }
 
     async fn get_art_for_album(&mut self, album_id: &str) -> Result<Bytes, HandlerError> {
@@ -88,28 +86,13 @@ impl ArtworkHandler {
     }
 }
 
-lazy_static! {
-    /// Regexp to extract an album ID
-    static ref ALBUM_RE: regex::Regex = Regex::new(r"_spotify/album/(\w+)").unwrap();
-}
-
-fn parse_album_id(uri: &str) -> Option<&str> {
-    ALBUM_RE
-        .captures(uri)
-        .map(|c| c.get(1))
-        .flatten()
-        .map(|m| m.as_str())
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::handlers::artwork::handler::parse_album_id;
-
-    #[test]
-    fn it_should_extract_album_id() {
-        assert_eq!(
-            Some("6joEjjTrkxdD16c4jgfBZP"),
-            parse_album_id("/_spotify/album/6joEjjTrkxdD16c4jgfBZP/track/6TaIZzmVfjSw6IZHm1rtEm")
-        );
+fn parse_album_id(path: &Path) -> Option<&str> {
+    if let Path::Internal(items) = path {
+        for (item_type, id) in items {
+            if item_type == &ItemType::Album {
+                return Some(id.as_ref());
+            }
+        }
     }
+    None
 }

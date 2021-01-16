@@ -1,6 +1,7 @@
 use serde::{Serialize, Serializer};
 use std::fmt;
 
+use crate::mpd_protocol::Path;
 use serde::ser::SerializeStruct;
 use std::fmt::Formatter;
 use std::time::Duration;
@@ -87,7 +88,7 @@ pub struct VolumeResponse {
 #[serde(rename_all = "PascalCase")]
 pub struct SongResponse {
     #[serde(rename = "file")]
-    pub file: String,
+    pub file: Path,
     pub artist: String,
     pub album: String,
     pub title: String,

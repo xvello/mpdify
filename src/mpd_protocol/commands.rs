@@ -7,7 +7,7 @@ use crate::mpd_protocol::input::InputError::{
 };
 use crate::mpd_protocol::input::{InputError, RelativeFloat};
 use crate::mpd_protocol::Command::AlbumArt;
-use crate::mpd_protocol::{CommandList, IdleSubsystem, PositionRange};
+use crate::mpd_protocol::{CommandList, IdleSubsystem, Path, PositionRange};
 use enumset::EnumSet;
 use log::debug;
 use std::str::FromStr;
@@ -61,7 +61,7 @@ pub enum Command {
     CommandListEnd,
 
     // Artwork
-    AlbumArt(String, u64),
+    AlbumArt(Path, u64),
 
     // Custom extension to support oauth2 authentication
     SpotifyAuth(Option<String>),
