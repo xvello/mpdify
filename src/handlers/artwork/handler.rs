@@ -3,8 +3,9 @@ use crate::mpd_protocol::*;
 use crate::util::Settings;
 use aspotify::Client;
 use log::{debug, warn};
-use lru_disk_cache::{LruDiskCache, ReadSeek};
-use std::ops::Deref;
+use std::fs::{File, OpenOptions};
+use std::io::{Read, Seek, Write};
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::io::SeekFrom;
 use tokio::sync::mpsc;
@@ -12,7 +13,7 @@ use tokio::sync::mpsc;
 pub struct ArtworkHandler {
     command_rx: mpsc::Receiver<HandlerInput>,
     client: Arc<Client>,
-    cache: LruDiskCache,
+    cache_path: PathBuf,
     max_chunk_size: u64,
 }
 
@@ -20,19 +21,18 @@ impl ArtworkHandler {
     pub async fn new(
         settings: &Settings,
         client: Arc<Client>,
-    ) -> Result<(Self, mpsc::Sender<HandlerInput>), lru_disk_cache::Error> {
+    ) -> (Self, mpsc::Sender<HandlerInput>) {
         let (command_tx, command_rx) = mpsc::channel(16);
         let cache_path = settings.cache_root_path().join("artwork");
-        let cache = LruDiskCache::new(cache_path, settings.artwork_cache_size())?;
-        Ok((
+        (
             ArtworkHandler {
                 command_rx,
                 client,
-                cache,
+                cache_path,
                 max_chunk_size: settings.artwork_chunk_size(),
             },
             command_tx,
-        ))
+        )
     }
     pub async fn run(&mut self) {
         debug!["artwork handler entered loop"];
@@ -62,13 +62,22 @@ impl ArtworkHandler {
         }
     }
 
-    async fn get_art(&mut self, path: Path) -> Result<Box<dyn ReadSeek>, HandlerError> {
+    async fn get_art(&mut self, path: Path) -> Result<File, HandlerError> {
         let (art_id, art_url) = self.resolve_art_url(&path).await?;
-        if !self.cache.contains_key(&art_id) {
-            let art = reqwest::get(&art_url).await?.bytes().await?;
-            self.cache.insert_bytes(&art_id, art.deref())?;
+        let path = self.cache_path.join(art_id);
+
+        if path.exists() {
+            return File::open(&path).map_err(HandlerError::IoError);
         }
-        return self.cache.get(&art_id).map_err(HandlerError::CacheError);
+
+        let art = reqwest::get(&art_url).await?.bytes().await?;
+        let mut file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(&path)?;
+        file.write_all(&art)?;
+        Ok(file)
     }
 
     async fn resolve_art_url(&mut self, path: &Path) -> Result<(String, String), HandlerError> {

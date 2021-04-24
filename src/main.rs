@@ -20,9 +20,7 @@ pub async fn main() -> () {
         SpotifyHandler::new(&settings, client.clone(), idle_bus.clone()).await;
     handlers.add(spotify_tx);
 
-    let (mut artwork, artwork_tx) = ArtworkHandler::new(&settings, client.clone())
-        .await
-        .unwrap();
+    let (mut artwork, artwork_tx) = ArtworkHandler::new(&settings, client.clone()).await;
     handlers.add(artwork_tx);
 
     let mut mpd = MpdListener::new(&settings, handlers.clone(), idle_bus.clone()).await;

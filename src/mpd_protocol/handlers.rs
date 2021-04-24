@@ -19,8 +19,6 @@ pub enum HandlerError {
     ASpotifyError(#[from] aspotify::model::Error),
     #[error("I/O error: {0}")]
     IoError(#[from] std::io::Error),
-    #[error("Cannot read cache: {0}")]
-    CacheError(#[from] lru_disk_cache::Error),
     #[error("Cannot retrieve data: {0}")]
     ReqwestError(#[from] reqwest::Error),
     #[error("{0}")]
