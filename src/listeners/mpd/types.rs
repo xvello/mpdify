@@ -6,7 +6,7 @@ use thiserror::Error;
 pub enum ListenerError {
     // Unrecoverable errors that should close the connection
     #[error(transparent)]
-    IO(#[from] std::io::Error),
+    Io(#[from] std::io::Error),
     #[error("client closed the connection")]
     ConnectionClosed,
     #[error(transparent)]

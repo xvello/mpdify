@@ -36,7 +36,7 @@ where
     match line {
         None => Err(ListenerError::ConnectionClosed),
         Some(line) => match line {
-            Err(err) => Err(ListenerError::IO(err)),
+            Err(err) => Err(ListenerError::Io(err)),
             Ok(line) => {
                 debug!("Read command {:?}", line);
                 Command::from_str(&line).map_err(ListenerError::InputError)
