@@ -1,5 +1,6 @@
+# DISCONTINUED PROJECT
 
-# mpdify &nbsp; &nbsp; [![CI status](https://github.com/xvello/mpdify/workflows/CI/badge.svg?branch=master)](https://github.com/xvello/mpdify/actions) [![dependency status](https://deps.rs/repo/github/xvello/mpdify/status.svg)](https://deps.rs/repo/github/xvello/mpdify)
+## mpdify &nbsp; &nbsp; [![CI status](https://github.com/xvello/mpdify/workflows/CI/badge.svg?branch=master)](https://github.com/xvello/mpdify/actions) [![dependency status](https://deps.rs/repo/github/xvello/mpdify/status.svg)](https://deps.rs/repo/github/xvello/mpdify)
 
 An experimental frontend to the Spotify public API, exposing a virtual [MPD server](https://www.musicpd.org/doc/html/protocol.html) and HTTP endpoints.
 
